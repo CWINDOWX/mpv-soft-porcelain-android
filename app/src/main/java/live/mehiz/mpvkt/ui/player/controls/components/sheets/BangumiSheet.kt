@@ -56,10 +56,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import live.mehiz.mpvkt.bangumi.BangumiApi
 import live.mehiz.mpvkt.bangumi.BangumiMatchState
 import live.mehiz.mpvkt.bangumi.BangumiSubject
 import live.mehiz.mpvkt.bangumi.BangumiUser
+import live.mehiz.mpvkt.preferences.BangumiMirrorPreset
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.presentation.components.PlayerSheet
 
@@ -67,6 +67,10 @@ import live.mehiz.mpvkt.presentation.components.PlayerSheet
 fun BangumiSyncSheet(
   user: BangumiUser?,
   syncMode: BangumiSyncMode,
+  mirror: BangumiMirrorPreset,
+  customApiUrl: String,
+  activeApiBaseUrl: String,
+  tokenPageUrl: String,
   match: BangumiMatchState?,
   markedWatched: Boolean,
   busy: Boolean,
@@ -78,6 +82,9 @@ fun BangumiSyncSheet(
   onLoginToken: (String) -> Unit,
   onLogout: () -> Unit,
   onSyncModeChange: (BangumiSyncMode) -> Unit,
+  onMirrorChange: (BangumiMirrorPreset) -> Unit,
+  onSaveCustomApiUrl: (String) -> Unit,
+  onTestConnection: () -> Unit,
   onMarkWatched: () -> Unit,
   onSearchSubjects: (String) -> Unit,
   onBindSubject: (BangumiSubject) -> Unit,
@@ -88,6 +95,7 @@ fun BangumiSyncSheet(
   val context = LocalContext.current
   var tokenInput by remember { mutableStateOf("") }
   var searchQuery by remember(initialKeyword) { mutableStateOf(initialKeyword) }
+  var customUrlInput by remember(customApiUrl) { mutableStateOf(customApiUrl) }
 
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
@@ -183,6 +191,101 @@ fun BangumiSyncSheet(
         }
       }
 
+      // Mirror / API endpoint selector
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(12.dp))
+          .background(cs.surfaceBright)
+          .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = "接口线路 / 镜像站",
+              style = MaterialTheme.typography.labelLarge,
+              fontWeight = FontWeight.SemiBold,
+              color = cs.onSurface,
+            )
+            Text(
+              text = activeApiBaseUrl,
+              style = MaterialTheme.typography.labelSmall,
+              color = cs.onSurfaceVariant,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
+          Box(
+            modifier = Modifier
+              .clip(RoundedCornerShape(8.dp))
+              .background(cs.surfaceContainer)
+              .clickable(enabled = !busy, onClick = onTestConnection)
+              .padding(horizontal = 10.dp, vertical = 5.dp),
+          ) {
+            Text(
+              text = "测试连通",
+              style = MaterialTheme.typography.labelSmall,
+              fontWeight = FontWeight.SemiBold,
+              color = cs.primary,
+            )
+          }
+        }
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+          BangumiMirrorPreset.entries.forEach { preset ->
+            val selected = preset == mirror
+            Box(
+              modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (selected) cs.primary else cs.surfaceContainer)
+                .clickable { onMirrorChange(preset) }
+                .padding(vertical = 8.dp),
+              contentAlignment = Alignment.Center,
+            ) {
+              Text(
+                text = preset.shortLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) cs.onPrimary else cs.onSurface,
+              )
+            }
+          }
+        }
+
+        if (mirror == BangumiMirrorPreset.Custom) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            OutlinedTextField(
+              value = customUrlInput,
+              onValueChange = { customUrlInput = it },
+              placeholder = { Text("https://api.bgm.lat") },
+              singleLine = true,
+              modifier = Modifier.weight(1f),
+              shape = RoundedCornerShape(10.dp),
+            )
+            Button(
+              onClick = { onSaveCustomApiUrl(customUrlInput) },
+              enabled = customUrlInput.isNotBlank(),
+              shape = RoundedCornerShape(10.dp),
+            ) {
+              Text("保存")
+            }
+          }
+        }
+      }
+
       // Login section when logged out
       if (user == null) {
         Column(
@@ -202,7 +305,7 @@ fun BangumiSyncSheet(
           OutlinedTextField(
             value = tokenInput,
             onValueChange = { tokenInput = it },
-            placeholder = { Text("在 next.bgm.tv/demo/access-token 生成并粘贴") },
+            placeholder = { Text("生成个人令牌并粘贴到此处") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
@@ -231,7 +334,7 @@ fun BangumiSyncSheet(
             OutlinedButton(
               onClick = {
                 runCatching {
-                  context.startActivity(Intent(Intent.ACTION_VIEW, BangumiApi.ACCESS_TOKEN_URL.toUri()))
+                  context.startActivity(Intent(Intent.ACTION_VIEW, tokenPageUrl.toUri()))
                 }
               },
               shape = RoundedCornerShape(10.dp),

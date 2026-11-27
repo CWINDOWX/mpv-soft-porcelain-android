@@ -58,16 +58,42 @@ data class BangumiEpisodesCacheEntry(
   val episodes: List<BangumiEpisode>,
 )
 
-class BangumiApi(private val json: Json) {
+class BangumiApi(
+  private val json: Json,
+  private val baseUrlProvider: () -> String = { DEFAULT_API_BASE },
+) {
   companion object {
-    private const val API_BASE = "https://api.bgm.tv"
+    const val DEFAULT_API_BASE = "https://api.bgm.tv"
     private const val USER_AGENT = "PorcelainMPV-Android/0.2 (https://github.com/bangumi/api)"
     const val ACCESS_TOKEN_URL = "https://next.bgm.tv/demo/access-token"
   }
 
+  private val apiBase: String
+    get() = baseUrlProvider().trim().trimEnd('/').ifBlank { DEFAULT_API_BASE }
+
   private fun headers(token: String?): Map<String, String> = buildMap {
     put("User-Agent", USER_AGENT)
     if (!token.isNullOrBlank()) put("Authorization", "Bearer ${token.trim()}")
+  }
+
+  suspend fun testConnection(): Result<Long> {
+    val startMs = System.currentTimeMillis()
+    val resp = PorcelainHttpClient.request(
+      method = "GET",
+      url = "$apiBase/v0/subjects/400602",
+      headers = headers(null),
+      retries = 0,
+    )
+    val elapsedMs = (System.currentTimeMillis() - startMs).coerceAtLeast(1L)
+    if (!resp.isSuccessful) {
+      return Result.failure(IllegalStateException(extractError(resp.code, resp.body, resp.error)))
+    }
+    val validJson = runCatching { json.parseToJsonElement(resp.body).jsonObject["id"] != null }.getOrDefault(false)
+    return if (validJson) {
+      Result.success(elapsedMs)
+    } else {
+      Result.failure(IllegalStateException("目标地址未返回有效的 Bangumi API 数据"))
+    }
   }
 
   private fun extractError(code: Int, body: String, fallback: String?): String {
@@ -84,7 +110,7 @@ class BangumiApi(private val json: Json) {
     if (clean.isEmpty()) return Result.failure(IllegalArgumentException("Access Token 不能为空"))
     val resp = PorcelainHttpClient.request(
       method = "GET",
-      url = "$API_BASE/v0/me",
+      url = "$apiBase/v0/me",
       headers = headers(clean),
       retries = 1,
     )
@@ -114,7 +140,7 @@ class BangumiApi(private val json: Json) {
 
     var resp = PorcelainHttpClient.request(
       method = "POST",
-      url = "$API_BASE/v0/search/subjects?limit=12",
+      url = "$apiBase/v0/search/subjects?limit=12",
       headers = headers(token),
       jsonBody = body,
       retries = 1,
@@ -122,7 +148,7 @@ class BangumiApi(private val json: Json) {
     if (resp.code == 401 && !token.isNullOrBlank()) {
       resp = PorcelainHttpClient.request(
         method = "POST",
-        url = "$API_BASE/v0/search/subjects?limit=12",
+        url = "$apiBase/v0/search/subjects?limit=12",
         headers = headers(null),
         jsonBody = body,
         retries = 1,
@@ -154,7 +180,7 @@ class BangumiApi(private val json: Json) {
     for (page in 0 until 20) {
       var resp = PorcelainHttpClient.request(
         method = "GET",
-        url = "$API_BASE/v0/episodes?subject_id=$subjectId&type=0&limit=100&offset=$offset",
+        url = "$apiBase/v0/episodes?subject_id=$subjectId&type=0&limit=100&offset=$offset",
         headers = headers(effToken),
         retries = 1,
       )
@@ -162,7 +188,7 @@ class BangumiApi(private val json: Json) {
         effToken = null
         resp = PorcelainHttpClient.request(
           method = "GET",
-          url = "$API_BASE/v0/episodes?subject_id=$subjectId&type=0&limit=100&offset=$offset",
+          url = "$apiBase/v0/episodes?subject_id=$subjectId&type=0&limit=100&offset=$offset",
           headers = headers(null),
           retries = 1,
         )
@@ -202,14 +228,14 @@ class BangumiApi(private val json: Json) {
     val encodedUser = URLEncoder.encode(username, "UTF-8")
     val colCheck = PorcelainHttpClient.request(
       method = "GET",
-      url = "$API_BASE/v0/users/$encodedUser/collections/$subjectId",
+      url = "$apiBase/v0/users/$encodedUser/collections/$subjectId",
       headers = headers(token),
       retries = 1,
     )
     if (colCheck.code == 404) {
       PorcelainHttpClient.request(
         method = "POST",
-        url = "$API_BASE/v0/users/-/collections/$subjectId",
+        url = "$apiBase/v0/users/-/collections/$subjectId",
         headers = headers(token),
         jsonBody = """{"type":3}""",
         retries = 0,
@@ -218,7 +244,7 @@ class BangumiApi(private val json: Json) {
 
     val markResp = PorcelainHttpClient.request(
       method = "PUT",
-      url = "$API_BASE/v0/users/-/collections/-/episodes/$episodeId",
+      url = "$apiBase/v0/users/-/collections/-/episodes/$episodeId",
       headers = headers(token),
       jsonBody = """{"type":2}""",
       retries = 0,

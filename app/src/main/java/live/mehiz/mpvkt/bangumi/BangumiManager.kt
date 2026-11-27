@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import live.mehiz.mpvkt.preferences.BangumiMirrorPreset
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
@@ -58,7 +59,7 @@ class BangumiManager(
     private const val MIN_DURATION_FOR_END_SYNC_SEC = 180
   }
 
-  private val api = BangumiApi(json)
+  private val api = BangumiApi(json) { preferences.resolveBangumiApiBaseUrl() }
   private val loadGeneration = AtomicInteger(0)
 
   private var currentFolderKey: String = ""
@@ -72,6 +73,12 @@ class BangumiManager(
 
   private val _syncMode = MutableStateFlow(preferences.bangumiSyncMode.get())
   val syncMode = _syncMode.asStateFlow()
+
+  private val _mirror = MutableStateFlow(preferences.bangumiMirror.get())
+  val mirror = _mirror.asStateFlow()
+
+  private val _customApiUrl = MutableStateFlow(preferences.bangumiCustomApiUrl.get())
+  val customApiUrl = _customApiUrl.asStateFlow()
 
   private val _match = MutableStateFlow<BangumiMatchState?>(null)
   val match = _match.asStateFlow()
@@ -120,6 +127,50 @@ class BangumiManager(
     _syncMode.value = mode
     preferences.bangumiSyncMode.set(mode)
     if (mode == BangumiSyncMode.Off) _showEndPrompt.value = false
+  }
+
+  fun setMirror(preset: BangumiMirrorPreset) {
+    _mirror.value = preset
+    preferences.bangumiMirror.set(preset)
+    _inlineError.value = null
+    _inlineStatus.value = "已切换线路：${preferences.resolveBangumiApiBaseUrl()}"
+  }
+
+  fun setCustomApiUrl(rawUrl: String) {
+    val normalized = PorcelainPreferences.normalizeMirrorUrl(rawUrl).orEmpty()
+    _customApiUrl.value = normalized
+    preferences.bangumiCustomApiUrl.set(normalized)
+    if (normalized.isNotBlank()) {
+      _mirror.value = BangumiMirrorPreset.Custom
+      preferences.bangumiMirror.set(BangumiMirrorPreset.Custom)
+      _inlineError.value = null
+      _inlineStatus.value = "已保存自定义镜像：$normalized"
+    } else {
+      _inlineError.value = "请输入有效的镜像站地址（例如 https://api.bgm.lat）"
+    }
+  }
+
+  fun activeApiBaseUrl(): String = preferences.resolveBangumiApiBaseUrl()
+
+  fun tokenPageUrl(): String = preferences.resolveBangumiTokenPageUrl()
+
+  fun testMirrorConnection() {
+    val target = preferences.resolveBangumiApiBaseUrl()
+    _busy.value = true
+    _inlineError.value = null
+    _inlineStatus.value = "正在测试连通性：$target …"
+    scope.launch(Dispatchers.IO) {
+      api.testConnection()
+        .onSuccess { ms ->
+          _inlineStatus.value = "连接正常：$target ($ms ms)"
+          _inlineError.value = null
+        }
+        .onFailure { e ->
+          _inlineStatus.value = null
+          _inlineError.value = "连接失败（$target）：${e.message ?: "无法访问"}"
+        }
+      _busy.value = false
+    }
   }
 
   fun dismissEndPrompt() {
