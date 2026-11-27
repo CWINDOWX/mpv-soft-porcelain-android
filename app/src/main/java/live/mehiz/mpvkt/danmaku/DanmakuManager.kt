@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
 import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
 import java.io.File
@@ -36,6 +37,7 @@ class DanmakuManager(
   private val loadGeneration = AtomicInteger(0)
 
   private var currentFileName: String = ""
+  private var currentHistoryKey: String = ""
   private var rawComments: List<DanmakuItem> = emptyList()
   private var currentEpisodeId: Long? = null
 
@@ -168,6 +170,8 @@ class DanmakuManager(
 
   fun resetForNewFile() {
     loadGeneration.incrementAndGet()
+    currentFileName = ""
+    currentHistoryKey = ""
     rawComments = emptyList()
     currentEpisodeId = null
     _comments.value = emptyList()
@@ -180,9 +184,11 @@ class DanmakuManager(
     _searchError.value = null
   }
 
-  fun onVideoLoaded(uri: Uri?, fileName: String, filePath: String?) {
+  fun onVideoLoaded(uri: Uri?, fileName: String, folderKey: String? = null, filePath: String? = null) {
     val gen = loadGeneration.incrementAndGet()
+    val resolvedKey = BangumiLibraryStore.videoCompositeKey(folderKey, fileName, uri?.toString())
     currentFileName = fileName
+    currentHistoryKey = resolvedKey
     rawComments = emptyList()
     currentEpisodeId = null
     _comments.value = emptyList()
@@ -214,8 +220,14 @@ class DanmakuManager(
         }
       }
 
-      // 2. Check persisted episode history for this filename
-      val cached = loadHistory()[historyKey(fileName)]
+      // 2. Check persisted episode history using directory-scoped key (only fallback to bare filename if distinctive)
+      val historyMap = loadHistory()
+      val cached = historyMap[resolvedKey]
+        ?: if (BangumiLibraryStore.isDistinctLegacyFileName(fileName)) {
+          historyMap[historyKey(fileName)]
+        } else {
+          null
+        }
       if (cached != null && gen == loadGeneration.get()) {
         val ok = fetchAndActivateEpisode(
           gen = gen,
@@ -417,9 +429,10 @@ class DanmakuManager(
         } else {
           "已加载 ${list.size} 条弹幕"
         }
-        if (saveHistory && currentFileName.isNotBlank()) {
+        val keyToSave = currentHistoryKey.ifBlank { historyKey(currentFileName) }
+        if (saveHistory && keyToSave.isNotBlank()) {
           saveHistoryEntry(
-            currentFileName,
+            keyToSave,
             DanmakuHistoryEntry(
               episodeId = episodeId,
               animeTitle = animeTitle,
@@ -480,10 +493,12 @@ class DanmakuManager(
     json.decodeFromString<Map<String, DanmakuHistoryEntry>>(historyFile.readText()).toMutableMap()
   }.getOrElse { mutableMapOf() }
 
-  private fun saveHistoryEntry(name: String, entry: DanmakuHistoryEntry) {
+  private fun saveHistoryEntry(key: String, entry: DanmakuHistoryEntry) {
     runCatching {
+      val norm = key.trim().lowercase(Locale.ROOT)
+      if (norm.isEmpty()) return@runCatching
       val map = loadHistory()
-      map[historyKey(name)] = entry
+      map[norm] = entry
       val trimmed = if (map.size > MAX_HISTORY_ENTRIES) {
         map.entries.sortedByDescending { it.value.updatedAt }.take(MAX_HISTORY_ENTRIES).associate { it.toPair() }
       } else {

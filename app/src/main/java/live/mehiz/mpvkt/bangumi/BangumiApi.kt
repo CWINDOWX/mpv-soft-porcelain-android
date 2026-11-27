@@ -56,6 +56,12 @@ data class BangumiFolderBinding(
 data class BangumiEpisodesCacheEntry(
   val updatedAtSec: Long,
   val episodes: List<BangumiEpisode>,
+  val complete: Boolean = true,
+)
+
+data class BangumiEpisodesFetchResult(
+  val episodes: List<BangumiEpisode>,
+  val complete: Boolean,
 )
 
 class BangumiApi(
@@ -173,11 +179,12 @@ class BangumiApi(
     return Result.success(out)
   }
 
-  suspend fun fetchEpisodes(subjectId: Int, token: String? = null): Result<List<BangumiEpisode>> {
+  suspend fun fetchEpisodes(subjectId: Int, token: String? = null): Result<BangumiEpisodesFetchResult> {
     val all = ArrayList<BangumiEpisode>()
     var offset = 0
     var effToken = token
-    for (page in 0 until 20) {
+    var complete = false
+    for (page in 0 until 50) {
       var resp = PorcelainHttpClient.request(
         method = "GET",
         url = "$apiBase/v0/episodes?subject_id=$subjectId&type=0&limit=100&offset=$offset",
@@ -214,9 +221,12 @@ class BangumiApi(
       }
       offset += batch.size
       val total = root["total"]?.jsonPrimitive?.intOrNull
-      if (batch.isEmpty() || (total != null && offset >= total)) break
+      if (batch.isEmpty() || (total != null && offset >= total)) {
+        complete = true
+        break
+      }
     }
-    return Result.success(all)
+    return Result.success(BangumiEpisodesFetchResult(episodes = all, complete = complete))
   }
 
   suspend fun markEpisodeWatched(

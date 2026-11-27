@@ -62,7 +62,7 @@ class PlayerManager(private val mpv: MPV, context: Context, graph: AppGraph, sco
     filePath: String?,
   ) {
     shaders.applyCurrent()
-    danmaku.onVideoLoaded(uri = uri, fileName = fileName, filePath = filePath)
+    danmaku.onVideoLoaded(uri = uri, fileName = fileName, folderKey = folderKey, filePath = filePath)
     bangumi.onVideoLoaded(fileName = fileName, folderKey = folderKey, folderName = folderName)
   }
 

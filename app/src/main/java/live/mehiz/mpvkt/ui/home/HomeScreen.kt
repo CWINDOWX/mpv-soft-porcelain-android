@@ -318,7 +318,11 @@ object HomeScreen : Screen {
           ) {
             items(folders, key = { it.bucketId }) { folder ->
               val watchedCount = remember(folder.videos, watchedTitles) {
-                folder.videos.count { it.displayName in watchedTitles }
+                folder.videos.count { v ->
+                  val compositeKey = BangumiLibraryStore.videoCompositeKey(folder.bucketId, v.displayName)
+                  compositeKey in watchedTitles ||
+                    (BangumiLibraryStore.isDistinctLegacyFileName(v.displayName) && v.displayName in watchedTitles)
+                }
               }
               val bangumiName = remember(folder.bucketId, bgmSnapshot) {
                 bgmSnapshot.resolveFolderName(folder.bucketId)

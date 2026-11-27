@@ -50,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.R
+import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
 import live.mehiz.mpvkt.database.entities.CustomButtonEntity
 import live.mehiz.mpvkt.database.entities.PlaybackStateEntity
 import live.mehiz.mpvkt.ui.home.LocalVideoLibrary
@@ -57,6 +58,7 @@ import live.mehiz.mpvkt.ui.player.controls.components.panels.toColorHexString
 import live.mehiz.mpvkt.ui.player.manager.PlayerManager
 import live.mehiz.mpvkt.ui.player.manager.PlaylistUiState
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 @Suppress("TooManyFunctions", "LargeClass")
 class MediaPlaybackService : MediaBrowserServiceCompat() {
@@ -103,6 +105,8 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
   var fileName = ""
     private set
+  private var playbackKey = ""
+  private val fileLoadGeneration = AtomicInteger(0)
   private var playIntent: Intent? = null
   private var pendingFile: String? = null
   private var hasSurface = false
@@ -241,7 +245,10 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
   private fun loadIntentInternal(intent: Intent) {
     val path = getPlayableUri(intent) ?: return
-    if (fileName.isNotBlank()) saveState()
+    if (playbackKey.isNotBlank() || fileName.isNotBlank()) saveState()
+    fileLoadGeneration.incrementAndGet()
+    fileName = ""
+    playbackKey = ""
     playIntent = intent
     autoPlayPending = true
     playerManager.resetForNewFile()
@@ -586,6 +593,10 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
       ?: intent.getStringExtra(LocalVideoLibrary.EXTRA_FOLDER_NAME)
       ?: activePath?.let { File(it).parentFile?.name }
     val mediaUri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
+    val loadGen = fileLoadGeneration.incrementAndGet()
+    val resolvedKey = BangumiLibraryStore.videoCompositeKey(folderKey, fileName, mediaUri?.toString())
+      .ifBlank { fileName }
+    playbackKey = resolvedKey
     playerManager.onMediaLoaded(
       uri = mediaUri,
       fileName = fileName,
@@ -599,11 +610,11 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     autoPlayPending = false
     ioScope.launch {
       try {
-        loadVideoPlaybackState(name)
+        loadVideoPlaybackState(loadGen = loadGen, storageKey = resolvedKey, legacyTitle = name)
       } finally {
-        if (shouldAutoPlay) {
+        if (shouldAutoPlay && loadGen == fileLoadGeneration.get()) {
           withContext(Dispatchers.Main.immediate) {
-            if (!isStopping) {
+            if (!isStopping && loadGen == fileLoadGeneration.get()) {
               if (hasSurface || isForeground) {
                 paused = false
               } else {
@@ -645,12 +656,12 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
   }
 
   fun saveState() {
-    val name = fileName
-    if (name.isBlank() || !mpv.isInitialized) return
+    val key = playbackKey.ifBlank { fileName }
+    if (key.isBlank() || !mpv.isInitialized) return
     val pos = mpv.prop["time-pos"] ?: 0
     val duration = mpv.prop["duration"] ?: 0
     val snapshot = PlaybackStateEntity(
-      mediaTitle = name,
+      mediaTitle = key,
       lastPosition = if (pos < duration - 1) pos else 0,
       playbackSpeed = mpv.prop["speed"] ?: 1.0,
       sid = mpv.prop["sid"] ?: 0,
@@ -664,7 +675,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     ioScope.launch {
       val keepOld = !playerPreferences.savePositionOnQuit.get()
       val state = if (keepOld) {
-        snapshot.copy(lastPosition = playbackStateRepository.getVideoDataByTitle(name)?.lastPosition ?: 0)
+        snapshot.copy(lastPosition = playbackStateRepository.getVideoDataByTitle(key)?.lastPosition ?: 0)
       } else {
         snapshot
       }
@@ -675,15 +686,27 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
   private fun delayMs(property: String): Int = ((mpv.prop[property] ?: 0.0) * 1000).toInt()
 
-  private suspend fun loadVideoPlaybackState(mediaTitle: String) {
-    if (mediaTitle.isBlank()) return
-    val state = playbackStateRepository.getVideoDataByTitle(mediaTitle)
+  private suspend fun loadVideoPlaybackState(
+    loadGen: Int,
+    storageKey: String,
+    legacyTitle: String,
+  ) {
+    if (storageKey.isBlank()) return
+    val state = playbackStateRepository.getVideoDataByTitle(storageKey)
+      ?: if (legacyTitle.isNotBlank() && storageKey != legacyTitle && BangumiLibraryStore.isDistinctLegacyFileName(legacyTitle)) {
+        playbackStateRepository.getVideoDataByTitle(legacyTitle)
+      } else {
+        null
+      }
+    // Abort before mutating mpv if another episode started loading while Room was querying
+    if (loadGen != fileLoadGeneration.get() || isStopping || !mpv.isInitialized) return
     val getDelay: (Int, Int?) -> Double = { preferenceDelay, stateDelay ->
       (stateDelay ?: preferenceDelay) / 1000.0
     }
     val subDelay = getDelay(subtitlesPreferences.defaultSubDelay.get(), state?.subDelay)
     val secondarySubDelay = getDelay(subtitlesPreferences.defaultSecondarySubDelay.get(), state?.secondarySubDelay)
     val audioDelay = getDelay(audioPreferences.defaultAudioDelay.get(), state?.audioDelay)
+    if (loadGen != fileLoadGeneration.get() || isStopping) return
     state?.let {
       mpv.prop("sid", it.sid)
       mpv.prop("secondary-sid", it.secondarySid)

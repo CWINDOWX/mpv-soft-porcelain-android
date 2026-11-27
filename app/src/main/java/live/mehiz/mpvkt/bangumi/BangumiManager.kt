@@ -60,6 +60,8 @@ class BangumiManager(
 
   private val api = BangumiApi(json) { preferences.resolveBangumiApiBaseUrl() }
   private val loadGeneration = AtomicInteger(0)
+  private val busyTokenSeq = AtomicInteger(0)
+  @Volatile private var activeBusyToken: Int = 0
 
   private var currentFolderKey: String = ""
   private var currentFolderName: String = ""
@@ -145,22 +147,44 @@ class BangumiManager(
     _inlineStatus.value = "已恢复官方地址：$def"
   }
 
+  private fun acquireBusy(): Int {
+    val token = busyTokenSeq.incrementAndGet()
+    activeBusyToken = token
+    _busy.value = true
+    return token
+  }
+
+  private fun releaseBusy(token: Int) {
+    if (activeBusyToken == token) {
+      activeBusyToken = 0
+      _busy.value = false
+    }
+  }
+
+  private fun clearBusyForFileChange() {
+    activeBusyToken = 0
+    _busy.value = false
+  }
+
   fun testMirrorConnection() {
     val target = preferences.resolveBangumiApiBaseUrl()
-    _busy.value = true
+    val busyToken = acquireBusy()
     _inlineError.value = null
     _inlineStatus.value = "正在测试连通性：$target …"
     scope.launch(Dispatchers.IO) {
-      api.testConnection()
-        .onSuccess { ms ->
-          _inlineStatus.value = "连接正常：$target ($ms ms)"
-          _inlineError.value = null
-        }
-        .onFailure { e ->
-          _inlineStatus.value = null
-          _inlineError.value = "连接失败（$target）：${e.message ?: "无法访问"}"
-        }
-      _busy.value = false
+      try {
+        api.testConnection()
+          .onSuccess { ms ->
+            _inlineStatus.value = "连接正常：$target ($ms ms)"
+            _inlineError.value = null
+          }
+          .onFailure { e ->
+            _inlineStatus.value = null
+            _inlineError.value = "连接失败（$target）：${e.message ?: "无法访问"}"
+          }
+      } finally {
+        releaseBusy(busyToken)
+      }
     }
   }
 
@@ -171,6 +195,7 @@ class BangumiManager(
 
   fun resetForNewFile() {
     loadGeneration.incrementAndGet()
+    clearBusyForFileChange()
     endSyncTriggeredForFile = false
     _match.value = null
     _markedWatched.value = false
@@ -182,9 +207,12 @@ class BangumiManager(
 
   fun onVideoLoaded(fileName: String, folderKey: String?, folderName: String?) {
     val gen = loadGeneration.incrementAndGet()
+    clearBusyForFileChange()
+    val normalizedFolderKey = BangumiLibraryStore.normalizeKey(folderKey)
+    val resolvedFolderName = folderName.orEmpty()
     currentFileName = fileName
-    currentFolderKey = BangumiLibraryStore.normalizeKey(folderKey)
-    currentFolderName = folderName.orEmpty()
+    currentFolderKey = normalizedFolderKey
+    currentFolderName = resolvedFolderName
     endSyncTriggeredForFile = false
     _match.value = null
     _markedWatched.value = false
@@ -205,8 +233,8 @@ class BangumiManager(
       val token = preferences.bangumiAccessToken.get().takeIf { it.isNotBlank() }
 
       // 1. Check folder binding cache first
-      if (currentFolderKey.isNotBlank()) {
-        val binding = BangumiLibraryStore.loadFolderMap(context, json)[currentFolderKey]
+      if (normalizedFolderKey.isNotBlank()) {
+        val binding = BangumiLibraryStore.loadFolderMap(context, json)[normalizedFolderKey]
         if (binding != null && gen == loadGeneration.get()) {
           val epTitle = if (episode != null) {
             resolveEpisodeInfo(binding.subjectId, episode, token, allowCache = true).getOrNull()?.displayTitle.orEmpty()
@@ -222,7 +250,7 @@ class BangumiManager(
             episodeTitle = epTitle,
             fromFolderBinding = true,
           )
-          persistResolvedVideoMeta(fileName, matched)
+          persistResolvedVideoMeta(fileName, normalizedFolderKey, matched)
           _match.value = matched
           onChineseTitleResolved(matched.subjectName, matched.season, matched.episodeNumber)
           return@launch
@@ -259,13 +287,13 @@ class BangumiManager(
         episodeTitle = epTitle,
         fromFolderBinding = false,
       )
-      persistResolvedVideoMeta(fileName, matched)
+      persistResolvedVideoMeta(fileName, normalizedFolderKey, matched)
       // Also cache auto-matched folder title for dedicated anime folders (skip generic dirs like Download/Movies)
-      if (currentFolderKey.isNotBlank() && !BangumiLibraryStore.isGenericFolderName(currentFolderName)) {
+      if (normalizedFolderKey.isNotBlank() && !BangumiLibraryStore.isGenericFolderName(resolvedFolderName)) {
         BangumiLibraryStore.saveFolderBinding(
           context = context,
           json = json,
-          folderKey = currentFolderKey,
+          folderKey = normalizedFolderKey,
           binding = BangumiFolderBinding(
             subjectId = best.id,
             subjectName = best.displayName,
@@ -285,25 +313,28 @@ class BangumiManager(
       _inlineError.value = "请粘贴从 Bangumi 生成的 Access Token"
       return
     }
-    _busy.value = true
+    val busyToken = acquireBusy()
     _inlineError.value = null
     _inlineStatus.value = "正在验证 Token…"
     scope.launch(Dispatchers.IO) {
-      api.verifyToken(clean)
-        .onSuccess { u ->
-          preferences.bangumiAccessToken.set(clean)
-          preferences.bangumiUsername.set(u.username)
-          preferences.bangumiNickname.set(u.nickname)
-          _user.value = u
-          _inlineStatus.value = "已登录：${u.nickname} (@${u.username})"
-          _inlineError.value = null
-          withContext(Dispatchers.Main) { onToast("Bangumi 登录成功：${u.nickname}") }
-        }
-        .onFailure { e ->
-          _inlineStatus.value = null
-          _inlineError.value = e.message ?: "登录验证失败"
-        }
-      _busy.value = false
+      try {
+        api.verifyToken(clean)
+          .onSuccess { u ->
+            preferences.bangumiAccessToken.set(clean)
+            preferences.bangumiUsername.set(u.username)
+            preferences.bangumiNickname.set(u.nickname)
+            _user.value = u
+            _inlineStatus.value = "已登录：${u.nickname} (@${u.username})"
+            _inlineError.value = null
+            withContext(Dispatchers.Main) { onToast("Bangumi 登录成功：${u.nickname}") }
+          }
+          .onFailure { e ->
+            _inlineStatus.value = null
+            _inlineError.value = e.message ?: "登录验证失败"
+          }
+      } finally {
+        releaseBusy(busyToken)
+      }
     }
   }
 
@@ -338,57 +369,63 @@ class BangumiManager(
   }
 
   fun bindSubjectToCurrentFolder(subject: BangumiSubject) {
-    val gen = loadGeneration.get()
-    val parsed = SmartTitleParser.parse(currentFileName)
+    // Advance generation so any slower in-flight auto-match cannot overwrite this manual binding
+    val gen = loadGeneration.incrementAndGet()
+    val capturedFileName = currentFileName
+    val capturedFolderKey = currentFolderKey
+    val parsed = SmartTitleParser.parse(capturedFileName)
     val episode = _match.value?.episodeNumber ?: parsed.episodeNumber?.toDoubleOrNull()
-    val season = _match.value?.season ?: SmartTitleParser.extractSeason(currentFileName) ?: 1
+    val season = _match.value?.season ?: SmartTitleParser.extractSeason(capturedFileName) ?: 1
 
-    _busy.value = true
+    val busyToken = acquireBusy()
     _inlineError.value = null
     _inlineStatus.value = "正在绑定《${subject.displayName}》…"
 
     scope.launch(Dispatchers.IO) {
-      if (currentFolderKey.isNotBlank()) {
-        BangumiLibraryStore.saveFolderBinding(
-          context = context,
-          json = json,
-          folderKey = currentFolderKey,
-          binding = BangumiFolderBinding(
-            subjectId = subject.id,
-            subjectName = subject.displayName,
-            isManual = true,
-            updatedAt = System.currentTimeMillis(),
-          ),
+      try {
+        if (capturedFolderKey.isNotBlank()) {
+          BangumiLibraryStore.saveFolderBinding(
+            context = context,
+            json = json,
+            folderKey = capturedFolderKey,
+            binding = BangumiFolderBinding(
+              subjectId = subject.id,
+              subjectName = subject.displayName,
+              isManual = true,
+              updatedAt = System.currentTimeMillis(),
+            ),
+          )
+        }
+        val token = preferences.bangumiAccessToken.get().takeIf { it.isNotBlank() }
+        // Always ensure the subject's full episode list is fetched & cached so the video list shows episode titles too!
+        val epTitle = if (episode != null) {
+          resolveEpisodeInfo(subject.id, episode, token, allowCache = true).getOrNull()?.displayTitle.orEmpty()
+        } else {
+          resolveEpisodeInfo(subject.id, 1.0, token, allowCache = true)
+          ""
+        }
+        if (gen != loadGeneration.get()) return@launch
+        val updated = BangumiMatchState(
+          subjectId = subject.id,
+          subjectName = subject.displayName,
+          season = season,
+          episodeNumber = episode,
+          episodeTitle = epTitle,
+          fromFolderBinding = capturedFolderKey.isNotBlank(),
         )
+        persistResolvedVideoMeta(capturedFileName, capturedFolderKey, updated)
+        _match.value = updated
+        _markedWatched.value = false
+        _inlineStatus.value = if (capturedFolderKey.isNotBlank()) {
+          "已绑定目录到《${subject.displayName}》并同步列表标题"
+        } else {
+          "已切换到《${subject.displayName}》并同步标题"
+        }
+        onChineseTitleResolved(updated.subjectName, updated.season, updated.episodeNumber)
+        withContext(Dispatchers.Main) { onToast("已绑定：${subject.displayName}") }
+      } finally {
+        releaseBusy(busyToken)
       }
-      val token = preferences.bangumiAccessToken.get().takeIf { it.isNotBlank() }
-      // Always ensure the subject's full episode list is fetched & cached so the video list shows episode titles too!
-      val epTitle = if (episode != null) {
-        resolveEpisodeInfo(subject.id, episode, token, allowCache = true).getOrNull()?.displayTitle.orEmpty()
-      } else {
-        resolveEpisodeInfo(subject.id, 1.0, token, allowCache = true)
-        ""
-      }
-      if (gen != loadGeneration.get()) return@launch
-      val updated = BangumiMatchState(
-        subjectId = subject.id,
-        subjectName = subject.displayName,
-        season = season,
-        episodeNumber = episode,
-        episodeTitle = epTitle,
-        fromFolderBinding = currentFolderKey.isNotBlank(),
-      )
-      persistResolvedVideoMeta(currentFileName, updated)
-      _match.value = updated
-      _markedWatched.value = false
-      _inlineStatus.value = if (currentFolderKey.isNotBlank()) {
-        "已绑定目录到《${subject.displayName}》并同步列表标题"
-      } else {
-        "已切换到《${subject.displayName}》并同步标题"
-      }
-      _busy.value = false
-      onChineseTitleResolved(updated.subjectName, updated.season, updated.episodeNumber)
-      withContext(Dispatchers.Main) { onToast("已绑定：${subject.displayName}") }
     }
   }
 
@@ -410,68 +447,84 @@ class BangumiManager(
       return
     }
 
-    _busy.value = true
+    val gen = loadGeneration.get()
+    val capturedFileName = currentFileName
+    val capturedFolderKey = currentFolderKey
+    val busyToken = acquireBusy()
     _inlineError.value = null
     _inlineStatus.value = "正在同步进度到 Bangumi…"
     _showEndPrompt.value = false
 
     scope.launch(Dispatchers.IO) {
-      var epRes = resolveEpisodeInfo(m.subjectId, epNum, token, allowCache = true)
-      if (epRes.isSuccess && epRes.getOrNull() == null) {
-        epRes = resolveEpisodeInfo(m.subjectId, epNum, token, allowCache = false)
-      }
-      val epObj = epRes.getOrElse { e ->
-        _busy.value = false
-        _inlineStatus.value = null
-        _inlineError.value = "获取剧集失败：${e.message}"
-        return@launch
-      }
-      if (epObj == null) {
-        _busy.value = false
-        _inlineStatus.value = null
-        _inlineError.value = "未在 Bangumi 找到${m.episodeLabel}"
-        return@launch
-      }
+      try {
+        var epRes = resolveEpisodeInfo(m.subjectId, epNum, token, allowCache = true)
+        if (epRes.isSuccess && epRes.getOrNull() == null) {
+          epRes = resolveEpisodeInfo(m.subjectId, epNum, token, allowCache = false)
+        }
+        val epObj = epRes.getOrElse { e ->
+          if (gen == loadGeneration.get()) {
+            _inlineStatus.value = null
+            _inlineError.value = "获取剧集失败：${e.message}"
+          }
+          return@launch
+        }
+        if (epObj == null) {
+          if (gen == loadGeneration.get()) {
+            _inlineStatus.value = null
+            _inlineError.value = "未在 Bangumi 找到${m.episodeLabel}"
+          }
+          return@launch
+        }
 
-      api.markEpisodeWatched(u.username, token, m.subjectId, epObj.id)
-        .onSuccess {
-          _markedWatched.value = true
-          endSyncTriggeredForFile = true
-          val refreshed = if (epObj.displayTitle.isNotBlank() && m.episodeTitle.isBlank()) {
-            m.copy(episodeTitle = epObj.displayTitle).also { _match.value = it }
-          } else {
-            m
+        api.markEpisodeWatched(u.username, token, m.subjectId, epObj.id)
+          .onSuccess {
+            val refreshed = if (epObj.displayTitle.isNotBlank() && m.episodeTitle.isBlank()) {
+              m.copy(episodeTitle = epObj.displayTitle)
+            } else {
+              m
+            }
+            // Persist metadata under the episode that was actually marked watched (captured at request start)
+            persistResolvedVideoMeta(capturedFileName, capturedFolderKey, refreshed)
+            val msg = if (fromAuto) {
+              "Bangumi 已自动同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
+            } else {
+              "已同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
+            }
+            // Only mutate live UI state if the user is still watching the same episode & subject
+            if (gen == loadGeneration.get() && _match.value?.subjectId == m.subjectId && _match.value?.episodeNumber == epNum) {
+              if (refreshed != m) _match.value = refreshed
+              _markedWatched.value = true
+              endSyncTriggeredForFile = true
+              _inlineStatus.value = msg
+              _inlineError.value = null
+            }
+            withContext(Dispatchers.Main) { onToast(msg) }
           }
-          persistResolvedVideoMeta(currentFileName, refreshed)
-          val msg = if (fromAuto) {
-            "Bangumi 已自动同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
-          } else {
-            "已同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
+          .onFailure { e ->
+            if (gen == loadGeneration.get()) {
+              _inlineStatus.value = null
+              _inlineError.value = e.message ?: "同步失败"
+              if (!fromAuto) {
+                withContext(Dispatchers.Main) { onToast("同步失败：${e.message}") }
+              }
+            }
           }
-          _inlineStatus.value = msg
-          _inlineError.value = null
-          withContext(Dispatchers.Main) { onToast(msg) }
-        }
-        .onFailure { e ->
-          _inlineStatus.value = null
-          _inlineError.value = e.message ?: "同步失败"
-          if (!fromAuto) {
-            withContext(Dispatchers.Main) { onToast("同步失败：${e.message}") }
-          }
-        }
-      _busy.value = false
+      } finally {
+        releaseBusy(busyToken)
+      }
     }
   }
 
   fun initialSearchKeyword(): String =
     _match.value?.subjectName?.ifBlank { currentParsedQuery } ?: currentParsedQuery
 
-  private fun persistResolvedVideoMeta(fileName: String, state: BangumiMatchState) {
+  private fun persistResolvedVideoMeta(fileName: String, folderKey: String?, state: BangumiMatchState) {
     if (fileName.isBlank()) return
     BangumiLibraryStore.saveVideoMeta(
       context = context,
       json = json,
       fileName = fileName,
+      folderKey = folderKey,
       meta = BangumiVideoMeta(
         subjectId = state.subjectId,
         subjectName = state.subjectName,
@@ -521,7 +574,7 @@ class BangumiManager(
           if ((hasTitle && age < 7 * 86_400L) || age < 3 * 3600L) {
             return Result.success(found)
           }
-        } else if (age < 3 * 3600L) {
+        } else if (entry.complete && age < 3 * 3600L) {
           return Result.success(null)
         }
       }
@@ -529,10 +582,14 @@ class BangumiManager(
 
     val fetched = api.fetchEpisodes(subjectId, token)
     return fetched.fold(
-      onSuccess = { episodes ->
-        cache[sidKey] = BangumiEpisodesCacheEntry(updatedAtSec = nowSec, episodes = episodes)
+      onSuccess = { res ->
+        cache[sidKey] = BangumiEpisodesCacheEntry(
+          updatedAtSec = nowSec,
+          episodes = res.episodes,
+          complete = res.complete,
+        )
         BangumiLibraryStore.saveEpisodesCache(context, json, cache)
-        Result.success(api.findEpisodeInList(episodes, targetEp))
+        Result.success(api.findEpisodeInList(res.episodes, targetEp))
       },
       onFailure = { err ->
         val stale = cache[sidKey]?.let { api.findEpisodeInList(it.episodes, targetEp) }

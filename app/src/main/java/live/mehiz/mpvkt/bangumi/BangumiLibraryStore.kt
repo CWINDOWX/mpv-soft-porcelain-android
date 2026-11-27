@@ -37,10 +37,16 @@ data class BangumiLibrarySnapshot(
   }
 
   fun resolveVideoTitle(fileName: String, folderKey: String? = null): ResolvedBangumiTitle? {
-    val fileKey = BangumiLibraryStore.normalizeKey(fileName)
+    val compositeKey = BangumiLibraryStore.videoCompositeKey(folderKey, fileName)
+    val legacyKey = BangumiLibraryStore.normalizeKey(fileName)
     val fKey = BangumiLibraryStore.normalizeKey(folderKey)
     val folderBinding = if (fKey.isNotEmpty()) folderMap[fKey] else null
-    val videoMeta = if (fileKey.isNotEmpty()) videoTitles[fileKey] else null
+    val videoMeta = videoTitles[compositeKey]
+      ?: if (legacyKey.isNotEmpty() && BangumiLibraryStore.isDistinctLegacyFileName(fileName)) {
+        videoTitles[legacyKey]
+      } else {
+        null
+      }
 
     // Manual folder binding wins so re-binding a folder immediately fixes all episodes in it.
     if (folderBinding != null && folderBinding.isManual) {
@@ -134,6 +140,32 @@ object BangumiLibraryStore {
   fun normalizeKey(raw: String?): String =
     raw.orEmpty().trim().replace('\\', '/').trimEnd('/').lowercase(Locale.ROOT)
 
+  /**
+   * Directory-scoped video key that separates identically named files such as `AnimeA/01.mkv` and `AnimeB/01.mkv`.
+   */
+  fun videoCompositeKey(folderKey: String?, fileName: String, fallbackUri: String? = null): String {
+    val fKey = normalizeKey(folderKey)
+    val nameKey = normalizeKey(fileName)
+    if (fKey.isNotEmpty() && nameKey.isNotEmpty()) return "$fKey/$nameKey"
+    val uriKey = normalizeKey(fallbackUri)
+    if (uriKey.isNotEmpty() && nameKey.isNotEmpty()) return "$uriKey/$nameKey"
+    return nameKey.ifEmpty { uriKey }
+  }
+
+  /**
+   * Returns true only when a bare filename carries a distinctive anime title (not generic names like `01.mkv` or `EP02.mp4`),
+   * so legacy filename-only entries never collide across folders.
+   */
+  fun isDistinctLegacyFileName(fileName: String): Boolean {
+    val parsed = SmartTitleParser.parse(fileName)
+    val title = parsed.animeName.trim()
+    if (title.length < 3) return false
+    if (Regex("""^(?:ep?|vol|s\d+e\d+|第?\d+[话話集]?|\d+)$""", RegexOption.IGNORE_CASE).matches(title)) {
+      return false
+    }
+    return true
+  }
+
   fun isGenericFolderName(folderName: String?): Boolean {
     val cleaned = folderName.orEmpty().trim().lowercase(Locale.ROOT)
     return cleaned.isEmpty() || cleaned in genericFolderNames
@@ -177,9 +209,10 @@ object BangumiLibraryStore {
     context: Context,
     json: Json,
     fileName: String,
+    folderKey: String? = null,
     meta: BangumiVideoMeta,
   ) = synchronized(lock) {
-    val key = normalizeKey(fileName)
+    val key = videoCompositeKey(folderKey, fileName)
     if (key.isEmpty()) return@synchronized
     val map = loadVideoTitlesLocked(context, json)
     map[key] = meta

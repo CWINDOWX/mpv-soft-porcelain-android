@@ -177,7 +177,15 @@ data class FolderVideosScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
           ) {
             itemsIndexed(videos, key = { _, v -> v.id }) { index, video ->
-              val saved = statesByTitle[video.displayName]
+              val compositeKey = remember(bucketId, video.displayName) {
+                BangumiLibraryStore.videoCompositeKey(bucketId, video.displayName)
+              }
+              val saved = statesByTitle[compositeKey]
+                ?: if (BangumiLibraryStore.isDistinctLegacyFileName(video.displayName)) {
+                  statesByTitle[video.displayName]
+                } else {
+                  null
+                }
               val progress = if (saved != null && video.durationMs > 0L && saved.lastPosition > 0) {
                 ((saved.lastPosition * 1000f) / video.durationMs.toFloat()).coerceIn(0f, 1f)
               } else {
