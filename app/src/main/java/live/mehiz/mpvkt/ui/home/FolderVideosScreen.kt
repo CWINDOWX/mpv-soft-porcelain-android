@@ -51,6 +51,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import live.mehiz.mpvkt.App
+import live.mehiz.mpvkt.bangumi.BangumiLibrarySnapshot
+import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
+import live.mehiz.mpvkt.bangumi.ResolvedBangumiTitle
 import live.mehiz.mpvkt.database.entities.PlaybackStateEntity
 import live.mehiz.mpvkt.presentation.Screen
 import live.mehiz.mpvkt.ui.utils.LocalBackStack
@@ -70,6 +73,9 @@ data class FolderVideosScreen(
 
     var videos by remember { mutableStateOf<List<LocalVideoItem>>(emptyList()) }
     var statesByTitle by remember { mutableStateOf<Map<String, PlaybackStateEntity>>(emptyMap()) }
+    var bgmSnapshot by remember {
+      mutableStateOf(BangumiLibrarySnapshot(emptyMap(), emptyMap(), emptyMap()))
+    }
     var loading by remember { mutableStateOf(true) }
     var refreshTick by remember { mutableStateOf(0) }
 
@@ -83,7 +89,14 @@ data class FolderVideosScreen(
       statesByTitle = withContext(Dispatchers.IO) {
         playbackRepo.getAllPlaybackStates().associateBy { it.mediaTitle }
       }
+      bgmSnapshot = withContext(Dispatchers.IO) {
+        BangumiLibraryStore.loadSnapshot(context, App.graph.json)
+      }
       loading = false
+    }
+
+    val resolvedFolderTitle = remember(bucketId, bgmSnapshot) {
+      bgmSnapshot.resolveFolderName(bucketId) ?: folderName
     }
 
     Scaffold(
@@ -98,17 +111,24 @@ data class FolderVideosScreen(
           title = {
             Column {
               Text(
-                text = folderName,
+                text = resolvedFolderTitle,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
               )
               if (!loading) {
+                val sub = if (resolvedFolderTitle != folderName) {
+                  "${videos.size} 个视频 · $folderName"
+                } else {
+                  "${videos.size} 个视频"
+                }
                 Text(
-                  text = "${videos.size} 个视频",
+                  text = sub,
                   style = MaterialTheme.typography.bodySmall,
                   color = cs.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
                 )
               }
             }
@@ -163,8 +183,12 @@ data class FolderVideosScreen(
               } else {
                 0f
               }
+              val bangumiTitle = remember(video.displayName, bucketId, bgmSnapshot) {
+                bgmSnapshot.resolveVideoTitle(video.displayName, bucketId)
+              }
               EpisodeVideoCard(
                 video = video,
+                bangumiTitle = bangumiTitle,
                 progress = progress,
                 lastPositionSec = saved?.lastPosition ?: 0,
                 onClick = { LocalVideoLibrary.launchPlaylist(context, videos, index) },
@@ -180,12 +204,16 @@ data class FolderVideosScreen(
 @Composable
 private fun EpisodeVideoCard(
   video: LocalVideoItem,
+  bangumiTitle: ResolvedBangumiTitle?,
   progress: Float,
   lastPositionSec: Int,
   onClick: () -> Unit,
 ) {
   val cs = MaterialTheme.colorScheme
   val parsed = remember(video.displayName) { SmartTitleParser.parse(video.displayName) }
+  val displayTitle = bangumiTitle?.displayTitle ?: parsed.displayTitle
+  val episodeBadge = bangumiTitle?.episodeNumber ?: parsed.episodeNumber
+
   Surface(
     modifier = Modifier
       .fillMaxWidth()
@@ -209,9 +237,9 @@ private fun EpisodeVideoCard(
             .background(if (progress > 0f) cs.primary else cs.primaryContainer),
           contentAlignment = Alignment.Center,
         ) {
-          if (parsed.episodeNumber != null) {
+          if (episodeBadge != null) {
             Text(
-              text = "E${parsed.episodeNumber}",
+              text = "E$episodeBadge",
               style = MaterialTheme.typography.labelLarge,
               fontWeight = FontWeight.Bold,
               color = if (progress > 0f) cs.onPrimary else cs.onPrimaryContainer,
@@ -231,7 +259,7 @@ private fun EpisodeVideoCard(
 
         Column(modifier = Modifier.weight(1f)) {
           Text(
-            text = parsed.displayTitle,
+            text = displayTitle,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
             color = cs.onSurface,

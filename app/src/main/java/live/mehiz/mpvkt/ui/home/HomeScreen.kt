@@ -70,6 +70,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.R
+import live.mehiz.mpvkt.bangumi.BangumiLibrarySnapshot
+import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
 import live.mehiz.mpvkt.presentation.Screen
 import live.mehiz.mpvkt.ui.player.PlayerActivity
 import live.mehiz.mpvkt.ui.preferences.PreferencesScreen
@@ -97,6 +99,9 @@ object HomeScreen : Screen {
     var permissionGranted by remember { mutableStateOf(hasVideoPermission(context)) }
     var folders by remember { mutableStateOf<List<LocalVideoFolder>>(emptyList()) }
     var watchedTitles by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var bgmSnapshot by remember {
+      mutableStateOf(BangumiLibrarySnapshot(emptyMap(), emptyMap(), emptyMap()))
+    }
     var loading by remember { mutableStateOf(permissionGranted) }
     var refreshTick by remember { mutableIntStateOf(0) }
 
@@ -142,6 +147,9 @@ object HomeScreen : Screen {
           .filter { it.lastPosition > 0 }
           .map { it.mediaTitle }
           .toSet()
+      }
+      bgmSnapshot = withContext(Dispatchers.IO) {
+        BangumiLibraryStore.loadSnapshot(context, App.graph.json)
       }
       loading = false
     }
@@ -312,8 +320,12 @@ object HomeScreen : Screen {
               val watchedCount = remember(folder.videos, watchedTitles) {
                 folder.videos.count { it.displayName in watchedTitles }
               }
+              val bangumiName = remember(folder.bucketId, bgmSnapshot) {
+                bgmSnapshot.resolveFolderName(folder.bucketId)
+              }
               FolderCard(
                 folder = folder,
+                displayName = bangumiName ?: folder.name,
                 watchedCount = watchedCount,
                 onClick = {
                   backstack.add(FolderVideosScreen(folder.bucketId, folder.name))
@@ -336,6 +348,7 @@ object HomeScreen : Screen {
 @Composable
 private fun FolderCard(
   folder: LocalVideoFolder,
+  displayName: String,
   watchedCount: Int,
   onClick: () -> Unit,
 ) {
@@ -374,7 +387,7 @@ private fun FolderCard(
 
       Column(modifier = Modifier.weight(1f)) {
         Text(
-          text = folder.name,
+          text = displayName,
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
           color = cs.onSurface,

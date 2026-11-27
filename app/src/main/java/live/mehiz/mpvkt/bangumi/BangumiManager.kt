@@ -10,14 +10,11 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
 import live.mehiz.mpvkt.ui.player.manager.PlaybackState
-import java.io.File
-import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 data class BangumiMatchState(
@@ -50,7 +47,7 @@ data class BangumiMatchState(
 }
 
 class BangumiManager(
-  context: Context,
+  private val context: Context,
   private val playback: PlaybackState,
   private val preferences: PorcelainPreferences,
   private val json: Json,
@@ -59,16 +56,13 @@ class BangumiManager(
   companion object {
     private const val END_PROMPT_REMAINING_SEC = 90
     private const val MIN_DURATION_FOR_END_SYNC_SEC = 180
-    private const val MAX_CACHED_SUBJECTS = 200
   }
 
   private val api = BangumiApi(json)
-  private val storeDir = File(context.filesDir, "porcelain").apply { mkdirs() }
-  private val mapFile = File(storeDir, "bangumi_map.json")
-  private val episodesCacheFile = File(storeDir, "bangumi_episodes_cache.json")
   private val loadGeneration = AtomicInteger(0)
 
   private var currentFolderKey: String = ""
+  private var currentFolderName: String = ""
   private var currentFileName: String = ""
   private var currentParsedQuery: String = ""
   private var endSyncTriggeredForFile: Boolean = false
@@ -147,7 +141,8 @@ class BangumiManager(
   fun onVideoLoaded(fileName: String, folderKey: String?, folderName: String?) {
     val gen = loadGeneration.incrementAndGet()
     currentFileName = fileName
-    currentFolderKey = normalizeFolderKey(folderKey)
+    currentFolderKey = BangumiLibraryStore.normalizeKey(folderKey)
+    currentFolderName = folderName.orEmpty()
     endSyncTriggeredForFile = false
     _match.value = null
     _markedWatched.value = false
@@ -169,7 +164,7 @@ class BangumiManager(
 
       // 1. Check folder binding cache first
       if (currentFolderKey.isNotBlank()) {
-        val binding = loadFolderMap()[currentFolderKey]
+        val binding = BangumiLibraryStore.loadFolderMap(context, json)[currentFolderKey]
         if (binding != null && gen == loadGeneration.get()) {
           val epTitle = if (episode != null) {
             resolveEpisodeInfo(binding.subjectId, episode, token, allowCache = true).getOrNull()?.displayTitle.orEmpty()
@@ -185,6 +180,7 @@ class BangumiManager(
             episodeTitle = epTitle,
             fromFolderBinding = true,
           )
+          persistResolvedVideoMeta(fileName, matched)
           _match.value = matched
           onChineseTitleResolved(matched.subjectName, matched.season, matched.episodeNumber)
           return@launch
@@ -221,6 +217,21 @@ class BangumiManager(
         episodeTitle = epTitle,
         fromFolderBinding = false,
       )
+      persistResolvedVideoMeta(fileName, matched)
+      // Also cache auto-matched folder title for dedicated anime folders (skip generic dirs like Download/Movies)
+      if (currentFolderKey.isNotBlank() && !BangumiLibraryStore.isGenericFolderName(currentFolderName)) {
+        BangumiLibraryStore.saveFolderBinding(
+          context = context,
+          json = json,
+          folderKey = currentFolderKey,
+          binding = BangumiFolderBinding(
+            subjectId = best.id,
+            subjectName = best.displayName,
+            isManual = false,
+            updatedAt = System.currentTimeMillis(),
+          ),
+        )
+      }
       _match.value = matched
       onChineseTitleResolved(matched.subjectName, matched.season, matched.episodeNumber)
     }
@@ -296,18 +307,24 @@ class BangumiManager(
 
     scope.launch(Dispatchers.IO) {
       if (currentFolderKey.isNotBlank()) {
-        val map = loadFolderMap()
-        map[currentFolderKey] = BangumiFolderBinding(
-          subjectId = subject.id,
-          subjectName = subject.displayName,
-          updatedAt = System.currentTimeMillis(),
+        BangumiLibraryStore.saveFolderBinding(
+          context = context,
+          json = json,
+          folderKey = currentFolderKey,
+          binding = BangumiFolderBinding(
+            subjectId = subject.id,
+            subjectName = subject.displayName,
+            isManual = true,
+            updatedAt = System.currentTimeMillis(),
+          ),
         )
-        saveFolderMap(map)
       }
       val token = preferences.bangumiAccessToken.get().takeIf { it.isNotBlank() }
+      // Always ensure the subject's full episode list is fetched & cached so the video list shows episode titles too!
       val epTitle = if (episode != null) {
         resolveEpisodeInfo(subject.id, episode, token, allowCache = true).getOrNull()?.displayTitle.orEmpty()
       } else {
+        resolveEpisodeInfo(subject.id, 1.0, token, allowCache = true)
         ""
       }
       if (gen != loadGeneration.get()) return@launch
@@ -319,12 +336,13 @@ class BangumiManager(
         episodeTitle = epTitle,
         fromFolderBinding = currentFolderKey.isNotBlank(),
       )
+      persistResolvedVideoMeta(currentFileName, updated)
       _match.value = updated
       _markedWatched.value = false
       _inlineStatus.value = if (currentFolderKey.isNotBlank()) {
-        "已绑定目录到《${subject.displayName}》"
+        "已绑定目录到《${subject.displayName}》并同步列表标题"
       } else {
-        "已切换到《${subject.displayName}》"
+        "已切换到《${subject.displayName}》并同步标题"
       }
       _busy.value = false
       onChineseTitleResolved(updated.subjectName, updated.season, updated.episodeNumber)
@@ -377,13 +395,16 @@ class BangumiManager(
         .onSuccess {
           _markedWatched.value = true
           endSyncTriggeredForFile = true
-          if (epObj.displayTitle.isNotBlank() && m.episodeTitle.isBlank()) {
-            _match.value = m.copy(episodeTitle = epObj.displayTitle)
-          }
-          val msg = if (fromAuto) {
-            "Bangumi 已自动同步：${m.subjectName} ${m.episodeLabel}"
+          val refreshed = if (epObj.displayTitle.isNotBlank() && m.episodeTitle.isBlank()) {
+            m.copy(episodeTitle = epObj.displayTitle).also { _match.value = it }
           } else {
-            "已同步：${m.subjectName} ${m.episodeLabel}"
+            m
+          }
+          persistResolvedVideoMeta(currentFileName, refreshed)
+          val msg = if (fromAuto) {
+            "Bangumi 已自动同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
+          } else {
+            "已同步：${refreshed.subjectName} ${refreshed.episodeLabel}"
           }
           _inlineStatus.value = msg
           _inlineError.value = null
@@ -402,6 +423,22 @@ class BangumiManager(
 
   fun initialSearchKeyword(): String =
     _match.value?.subjectName?.ifBlank { currentParsedQuery } ?: currentParsedQuery
+
+  private fun persistResolvedVideoMeta(fileName: String, state: BangumiMatchState) {
+    if (fileName.isBlank()) return
+    BangumiLibraryStore.saveVideoMeta(
+      context = context,
+      json = json,
+      fileName = fileName,
+      meta = BangumiVideoMeta(
+        subjectId = state.subjectId,
+        subjectName = state.subjectName,
+        episodeNumber = state.episodeNumber,
+        episodeTitle = state.episodeTitle,
+        updatedAt = System.currentTimeMillis(),
+      ),
+    )
+  }
 
   private fun evaluateEndSync(positionSec: Int, durationSec: Int) {
     if (endSyncTriggeredForFile || _markedWatched.value) return
@@ -428,7 +465,7 @@ class BangumiManager(
     token: String?,
     allowCache: Boolean,
   ): Result<BangumiEpisode?> {
-    val cache = loadEpisodesCache()
+    val cache = BangumiLibraryStore.loadEpisodesCache(context, json)
     val sidKey = subjectId.toString()
     val nowSec = System.currentTimeMillis() / 1000L
 
@@ -452,7 +489,7 @@ class BangumiManager(
     return fetched.fold(
       onSuccess = { episodes ->
         cache[sidKey] = BangumiEpisodesCacheEntry(updatedAtSec = nowSec, episodes = episodes)
-        saveEpisodesCache(cache)
+        BangumiLibraryStore.saveEpisodesCache(context, json, cache)
         Result.success(api.findEpisodeInList(episodes, targetEp))
       },
       onFailure = { err ->
@@ -460,34 +497,6 @@ class BangumiManager(
         if (stale != null) Result.success(stale) else Result.failure(err)
       },
     )
-  }
-
-  private fun normalizeFolderKey(raw: String?): String =
-    raw.orEmpty().trim().replace('\\', '/').trimEnd('/').lowercase(Locale.ROOT)
-
-  private fun loadFolderMap(): MutableMap<String, BangumiFolderBinding> = runCatching {
-    if (!mapFile.exists()) return mutableMapOf()
-    json.decodeFromString<Map<String, BangumiFolderBinding>>(mapFile.readText()).toMutableMap()
-  }.getOrElse { mutableMapOf() }
-
-  private fun saveFolderMap(map: Map<String, BangumiFolderBinding>) {
-    runCatching { mapFile.writeText(json.encodeToString(map)) }
-  }
-
-  private fun loadEpisodesCache(): MutableMap<String, BangumiEpisodesCacheEntry> = runCatching {
-    if (!episodesCacheFile.exists()) return mutableMapOf()
-    json.decodeFromString<Map<String, BangumiEpisodesCacheEntry>>(episodesCacheFile.readText()).toMutableMap()
-  }.getOrElse { mutableMapOf() }
-
-  private fun saveEpisodesCache(map: Map<String, BangumiEpisodesCacheEntry>) {
-    runCatching {
-      val trimmed = if (map.size > MAX_CACHED_SUBJECTS) {
-        map.entries.sortedByDescending { it.value.updatedAtSec }.take(MAX_CACHED_SUBJECTS).associate { it.toPair() }
-      } else {
-        map
-      }
-      episodesCacheFile.writeText(json.encodeToString(trimmed))
-    }
   }
 
   private fun extractSeason(fileName: String): Int? {

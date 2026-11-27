@@ -27,13 +27,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import `is`.xyz.mpv.Utils
+import live.mehiz.mpvkt.App
+import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
 import live.mehiz.mpvkt.preferences.ChapterSkipMode
 import live.mehiz.mpvkt.preferences.MobileShaderPreset
 import live.mehiz.mpvkt.presentation.components.PlayerSheet
@@ -275,6 +279,10 @@ fun PlaylistSheet(
   modifier: Modifier = Modifier,
 ) {
   val cs = MaterialTheme.colorScheme
+  val context = LocalContext.current
+  val bgmSnapshot = remember(playlist) {
+    BangumiLibraryStore.loadSnapshot(context, App.graph.json)
+  }
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
       modifier = Modifier
@@ -307,6 +315,9 @@ fun PlaylistSheet(
         itemsIndexed(playlist.names) { index, rawName ->
           val current = index == playlist.currentIndex
           val parsed = SmartTitleParser.parse(rawName)
+          val resolved = bgmSnapshot.resolveVideoTitle(rawName, playlist.folderKey)
+          val epNumBadge = resolved?.episodeNumber ?: parsed.episodeNumber ?: "${index + 1}"
+          val itemTitle = resolved?.displayTitle ?: parsed.displayTitle
           Row(
             modifier = Modifier
               .fillMaxWidth()
@@ -336,7 +347,7 @@ fun PlaylistSheet(
                 )
               } else {
                 Text(
-                  text = parsed.episodeNumber ?: "${index + 1}",
+                  text = epNumBadge,
                   style = MaterialTheme.typography.labelSmall,
                   fontWeight = FontWeight.Bold,
                   color = cs.onPrimaryContainer,
@@ -346,7 +357,7 @@ fun PlaylistSheet(
             }
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = parsed.displayTitle,
+                text = itemTitle,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
                 color = if (current) cs.onPrimary else cs.onSurface,

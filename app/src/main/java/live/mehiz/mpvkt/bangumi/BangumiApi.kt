@@ -48,6 +48,7 @@ data class BangumiEpisode(
 data class BangumiFolderBinding(
   val subjectId: Int,
   val subjectName: String,
+  val isManual: Boolean = true,
   val updatedAt: Long = 0L,
 )
 
