@@ -374,8 +374,9 @@ fun DanmakuOverlay(
   val style by danmakuManager.style.collectAsState()
   val timeOffsetSec by danmakuManager.timeOffsetSec.collectAsState()
   val paused by playback.paused.collectAsState()
+  val pausedForCache by playback.pausedForCache.collectAsState()
   val speed by playback.speed.collectAsState()
-  val precisePos by playback.precisePosition.collectAsState()
+  val coarsePos by playback.position.collectAsState()
 
   if (!enabled || comments.isEmpty()) return
 
@@ -396,63 +397,82 @@ fun DanmakuOverlay(
 
   val engine = remember { DanmakuCanvasEngine() }
 
-  // Smooth wall-clock anchor synced to mpv's precise time-pos (eliminates coarse time-pos stutter!)
-  val clockState = remember {
+  // Phase-locked 120Hz video clock: integrates per-VSYNC delta and gently syncs to live mpv time-pos.
+  val clock = remember {
     object {
-      var anchorVideoSec: Double = 0.0
-      var anchorNanos: Long = 0L
-      var lastSampledSec: Double = 0.0
-    }
-  }
-
-  // Re-anchor cleanly whenever mpv reports a new position, pause state, or speed change
-  LaunchedEffect(precisePos, paused, speed) {
-    val now = System.nanoTime()
-    if (paused || clockState.anchorNanos == 0L) {
-      clockState.anchorVideoSec = precisePos
-      clockState.anchorNanos = now
-      clockState.lastSampledSec = precisePos
-    } else {
-      val predicted = clockState.anchorVideoSec + ((now - clockState.anchorNanos) / 1_000_000_000.0) * speed
-      val drift = precisePos - predicted
-      if (abs(drift) > 0.32) {
-        // Seek / chapter skip / stall -> hard re-anchor
-        clockState.anchorVideoSec = precisePos
-        clockState.anchorNanos = now
-      } else if (abs(drift) > 0.06) {
-        // Gentle phase lock (25% step) so 120Hz scrolling stays silky with zero jitter
-        clockState.anchorVideoSec = predicted + drift * 0.25
-        clockState.anchorNanos = now
-      }
-      clockState.lastSampledSec = precisePos
+      var videoSec: Double = playback.currentTimePos()
+      var lastFrameNanos: Long = 0L
+      var lastSyncNanos: Long = 0L
+      var lastPolledMpvPos: Double = videoSec
+      var stagnantSyncCount: Int = 0
     }
   }
 
   var frameTick by remember { mutableLongStateOf(0L) }
-  LaunchedEffect(enabled, paused, comments.isNotEmpty()) {
-    if (!paused) {
-      while (true) {
-        withFrameNanos { frameNanos ->
-          frameTick = frameNanos
-        }
-      }
-    } else {
+
+  // Immediately snap clock on seeks / pauses / file transitions
+  LaunchedEffect(coarsePos, paused, pausedForCache, comments) {
+    val livePos = playback.currentTimePos()
+    if (paused || pausedForCache || abs(livePos - clock.videoSec) > 0.6) {
+      clock.videoSec = livePos
+      clock.lastPolledMpvPos = livePos
+      clock.stagnantSyncCount = 0
+      clock.lastFrameNanos = 0L
       frameTick = System.nanoTime()
     }
   }
 
-  Canvas(modifier = modifier.fillMaxSize()) {
-    // Read frameTick inside draw phase so Compose re-draws at native display VSYNC (120Hz) without recomposing!
-    val tick = frameTick
-    val videoTimeSec = if (paused || clockState.anchorNanos == 0L) {
-      clockState.anchorVideoSec
-    } else {
-      val dt = ((tick - clockState.anchorNanos).coerceAtLeast(0L)) / 1_000_000_000.0
-      // Guard against runaway extrapolation if mpv buffers silently
-      val clampedDt = dt.coerceAtMost(2.5)
-      clockState.anchorVideoSec + clampedDt * speed
+  // Native VSYNC loop (120Hz / 90Hz / 60Hz) running only while actively playing
+  LaunchedEffect(enabled, paused, pausedForCache, speed, comments.isNotEmpty()) {
+    clock.videoSec = playback.currentTimePos()
+    clock.lastPolledMpvPos = clock.videoSec
+    clock.stagnantSyncCount = 0
+    clock.lastFrameNanos = 0L
+    clock.lastSyncNanos = 0L
+
+    if (paused || pausedForCache) {
+      frameTick = System.nanoTime()
+      return@LaunchedEffect
     }
-    val effectiveTime = (videoTimeSec + timeOffsetSec).toFloat().coerceAtLeast(0f)
+
+    while (true) {
+      withFrameNanos { frameNanos ->
+        val prevNanos = clock.lastFrameNanos
+        clock.lastFrameNanos = frameNanos
+        if (prevNanos != 0L && clock.stagnantSyncCount < 5) {
+          val dtSec = ((frameNanos - prevNanos).coerceIn(0L, 100_000_000L)) / 1_000_000_000.0
+          clock.videoSec += dtSec * speed
+        }
+
+        // Poll exact double time-pos from mpv every ~250ms to stay phase-locked with zero stutter
+        if (clock.lastSyncNanos == 0L || frameNanos - clock.lastSyncNanos >= 250_000_000L) {
+          val hadPriorSync = clock.lastSyncNanos != 0L
+          clock.lastSyncNanos = frameNanos
+          val mpvPos = playback.currentTimePos()
+          if (hadPriorSync && abs(mpvPos - clock.lastPolledMpvPos) < 0.001) {
+            clock.stagnantSyncCount = (clock.stagnantSyncCount + 1).coerceAtMost(10)
+          } else {
+            clock.stagnantSyncCount = 0
+          }
+          clock.lastPolledMpvPos = mpvPos
+
+          val drift = mpvPos - clock.videoSec
+          when {
+            clock.stagnantSyncCount >= 5 -> clock.videoSec = mpvPos
+            abs(drift) > 0.35 -> clock.videoSec = mpvPos
+            abs(drift) > 0.02 -> clock.videoSec += drift * 0.20
+          }
+        }
+
+        frameTick = frameNanos
+      }
+    }
+  }
+
+  Canvas(modifier = modifier.fillMaxSize()) {
+    // Reading frameTick invalidates only the Draw phase at display VSYNC without recomposing!
+    if (frameTick == Long.MIN_VALUE) return@Canvas
+    val effectiveTime = (clock.videoSec + timeOffsetSec).toFloat().coerceAtLeast(0f)
 
     engine.configureStyle(
       style = style,
