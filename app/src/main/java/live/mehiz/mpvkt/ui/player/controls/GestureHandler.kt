@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,6 +48,7 @@ import live.mehiz.mpvkt.presentation.components.RightSideOvalShape
 import live.mehiz.mpvkt.ui.player.Panels
 import live.mehiz.mpvkt.ui.player.PlayerUpdates
 import live.mehiz.mpvkt.ui.player.PlayerViewModel
+import live.mehiz.mpvkt.ui.player.VideoAspect
 import live.mehiz.mpvkt.ui.player.controls.components.DoubleTapSeekTriangles
 import live.mehiz.mpvkt.ui.theme.playerRippleConfiguration
 
@@ -270,6 +272,32 @@ fun GestureHandler(
             volumeGesture -> changeVolume()
 
             else -> {}
+          }
+        }
+      }
+      .pointerInput(areControlsLocked) {
+        if (areControlsLocked) return@pointerInput
+        var cumulativeZoom = 1f
+        var lastTriggerMs = 0L
+        detectTransformGestures { _, _, zoom, _ ->
+          if (zoom == 1f) return@detectTransformGestures
+          val now = System.currentTimeMillis()
+          if (now - lastTriggerMs < 550L) return@detectTransformGestures
+          cumulativeZoom *= zoom
+          if (cumulativeZoom >= 1.18f) {
+            if (viewModel.playerManager.video.aspect.value != VideoAspect.Crop) {
+              haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+              viewModel.changeVideoAspect(VideoAspect.Crop)
+            }
+            cumulativeZoom = 1f
+            lastTriggerMs = now
+          } else if (cumulativeZoom <= 0.85f) {
+            if (viewModel.playerManager.video.aspect.value != VideoAspect.Fit) {
+              haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+              viewModel.changeVideoAspect(VideoAspect.Fit)
+            }
+            cumulativeZoom = 1f
+            lastTriggerMs = now
           }
         }
       },

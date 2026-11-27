@@ -5,10 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
@@ -27,9 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import live.mehiz.mpvkt.R
-import live.mehiz.mpvkt.ui.theme.spacing
+import live.mehiz.mpvkt.ui.theme.PorcelainBg
+import live.mehiz.mpvkt.ui.theme.PorcelainBlue
+import live.mehiz.mpvkt.ui.theme.PorcelainError
+import live.mehiz.mpvkt.ui.theme.PorcelainInk
+import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -47,32 +54,34 @@ fun VerticalSlider(
   overflowValue: Float? = null,
   overflowRange: ClosedFloatingPointRange<Float>? = null,
 ) {
-  require(range.contains(value)) { "Value must be within the provided range" }
+  val safeValue = value.coerceIn(range.start, range.endInclusive)
   Box(
     modifier = modifier
-      .height(120.dp)
-      .aspectRatio(0.2f)
-      .clip(RoundedCornerShape(16.dp))
-      .background(MaterialTheme.colorScheme.background),
+      .height(112.dp)
+      .width(10.dp)
+      .clip(RoundedCornerShape(8.dp))
+      .background(PorcelainTrack),
     contentAlignment = Alignment.BottomCenter,
   ) {
-    val targetHeight by animateFloatAsState(percentage(value, range), label = "vsliderheight")
+    val targetHeight by animateFloatAsState(percentage(safeValue, range), label = "vsliderheight")
     Box(
       Modifier
         .fillMaxWidth()
         .fillMaxHeight(targetHeight)
-        .background(MaterialTheme.colorScheme.tertiary),
+        .clip(RoundedCornerShape(8.dp))
+        .background(PorcelainBlue),
     )
-    if (overflowRange != null && overflowValue != null) {
+    if (overflowRange != null && overflowValue != null && overflowValue > overflowRange.start) {
       val overflowHeight by animateFloatAsState(
-        percentage(overflowValue, overflowRange),
+        percentage(overflowValue.coerceIn(overflowRange.start, overflowRange.endInclusive), overflowRange),
         label = "vslideroverflowheight",
       )
       Box(
         Modifier
           .fillMaxWidth()
           .fillMaxHeight(overflowHeight)
-          .background(MaterialTheme.colorScheme.errorContainer),
+          .clip(RoundedCornerShape(8.dp))
+          .background(PorcelainError.copy(alpha = 0.85f)),
       )
     }
   }
@@ -86,32 +95,34 @@ fun VerticalSlider(
   overflowValue: Int? = null,
   overflowRange: ClosedRange<Int>? = null,
 ) {
-  require(range.contains(value)) { "Value must be within the provided range" }
+  val safeValue = value.coerceIn(range.start, range.endInclusive)
   Box(
     modifier = modifier
-      .height(120.dp)
-      .aspectRatio(0.2f)
-      .clip(RoundedCornerShape(16.dp))
-      .background(MaterialTheme.colorScheme.background),
+      .height(112.dp)
+      .width(10.dp)
+      .clip(RoundedCornerShape(8.dp))
+      .background(PorcelainTrack),
     contentAlignment = Alignment.BottomCenter,
   ) {
-    val targetHeight by animateFloatAsState(percentage(value, range), label = "vsliderheight")
+    val targetHeight by animateFloatAsState(percentage(safeValue, range), label = "vsliderheight")
     Box(
       Modifier
         .fillMaxWidth()
         .fillMaxHeight(targetHeight)
-        .background(MaterialTheme.colorScheme.tertiary),
+        .clip(RoundedCornerShape(8.dp))
+        .background(PorcelainBlue),
     )
-    if (overflowRange != null && overflowValue != null) {
+    if (overflowRange != null && overflowValue != null && overflowValue > overflowRange.start) {
       val overflowHeight by animateFloatAsState(
-        percentage(overflowValue, overflowRange),
+        percentage(overflowValue.coerceIn(overflowRange.start, overflowRange.endInclusive), overflowRange),
         label = "vslideroverflowheight",
       )
       Box(
         Modifier
           .fillMaxWidth()
           .fillMaxHeight(overflowHeight)
-          .background(MaterialTheme.colorScheme.errorContainer),
+          .clip(RoundedCornerShape(8.dp))
+          .background(PorcelainError.copy(alpha = 0.85f)),
       )
     }
   }
@@ -120,26 +131,29 @@ fun VerticalSlider(
 @Composable
 fun BrightnessSlider(brightness: Float, range: ClosedFloatingPointRange<Float>, modifier: Modifier = Modifier) {
   Column(
-    modifier = modifier,
+    modifier = modifier
+      .clip(RoundedCornerShape(16.dp))
+      .background(PorcelainBg.copy(alpha = 0.92f))
+      .padding(horizontal = 10.dp, vertical = 12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(
-      (brightness * 100).toInt().toString(),
-      style = MaterialTheme.typography.bodySmall,
+      text = "${(brightness * 100).roundToInt()}%",
+      style = MaterialTheme.typography.labelSmall,
+      fontWeight = FontWeight.Bold,
+      color = PorcelainInk,
     )
-    VerticalSlider(
-      brightness,
-      range,
-    )
+    VerticalSlider(brightness, range)
     Icon(
-      when (percentage(brightness, range)) {
+      imageVector = when (percentage(brightness, range)) {
         in 0f..0.3f -> Icons.Default.BrightnessLow
         in 0.3f..0.6f -> Icons.Default.BrightnessMedium
-        in 0.6f..1f -> Icons.Default.BrightnessHigh
-        else -> Icons.Default.BrightnessMedium
+        else -> Icons.Default.BrightnessHigh
       },
-      null,
+      contentDescription = null,
+      tint = PorcelainBlue,
+      modifier = Modifier.size(18.dp),
     )
   }
 }
@@ -153,32 +167,38 @@ fun VolumeSlider(
   modifier: Modifier = Modifier,
   displayAsPercentage: Boolean = false,
 ) {
-  val percentage = (percentage(volume, range) * 100).roundToInt()
+  val pct = (percentage(volume, range) * 100).roundToInt()
   Column(
-    modifier = modifier,
+    modifier = modifier
+      .clip(RoundedCornerShape(16.dp))
+      .background(PorcelainBg.copy(alpha = 0.92f))
+      .padding(horizontal = 10.dp, vertical = 12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.smaller),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     val boostVolume = mpvVolume - 100
     Text(
-      getVolumeSliderText(volume, mpvVolume, boostVolume, percentage, displayAsPercentage),
-      style = MaterialTheme.typography.bodySmall,
+      text = getVolumeSliderText(volume, mpvVolume, boostVolume, pct, displayAsPercentage),
+      style = MaterialTheme.typography.labelSmall,
+      fontWeight = FontWeight.Bold,
+      color = PorcelainInk,
     )
     VerticalSlider(
-      if (displayAsPercentage) percentage else volume,
+      if (displayAsPercentage) pct else volume,
       if (displayAsPercentage) 0..100 else range,
       overflowValue = boostVolume,
       overflowRange = boostRange,
     )
     Icon(
-      when (percentage) {
+      imageVector = when (pct) {
         0 -> Icons.AutoMirrored.Default.VolumeOff
-        in 0..30 -> Icons.AutoMirrored.Default.VolumeMute
-        in 30..60 -> Icons.AutoMirrored.Default.VolumeDown
-        in 60..100 -> Icons.AutoMirrored.Default.VolumeUp
-        else -> Icons.AutoMirrored.Default.VolumeOff
+        in 1..30 -> Icons.AutoMirrored.Default.VolumeMute
+        in 31..60 -> Icons.AutoMirrored.Default.VolumeDown
+        else -> Icons.AutoMirrored.Default.VolumeUp
       },
-      null,
+      contentDescription = null,
+      tint = PorcelainBlue,
+      modifier = Modifier.size(18.dp),
     )
   }
 }

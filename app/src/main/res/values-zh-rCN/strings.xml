@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">瓷白 MPV</string>
     <string name="generic_reset">重置</string>
     <string name="generic_share">分享</string>
     <string name="generic_confirm">确定</string>

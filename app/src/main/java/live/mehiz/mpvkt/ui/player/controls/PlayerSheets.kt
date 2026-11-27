@@ -9,16 +9,23 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import live.mehiz.mpvkt.database.entities.CustomButtonEntity
 import live.mehiz.mpvkt.preferences.AudioChannels
+import live.mehiz.mpvkt.preferences.ChapterSkipMode
+import live.mehiz.mpvkt.preferences.MobileShaderPreset
 import live.mehiz.mpvkt.ui.player.Decoder
 import live.mehiz.mpvkt.ui.player.Panels
 import live.mehiz.mpvkt.ui.player.Sheets
 import live.mehiz.mpvkt.ui.player.TrackNode
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.AudioTracksSheet
+import live.mehiz.mpvkt.ui.player.controls.components.sheets.ChapterSkipSheet
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.ChaptersSheet
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.DecodersSheet
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.MoreSheet
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.PlaybackSpeedSheet
+import live.mehiz.mpvkt.ui.player.controls.components.sheets.PlaylistSheet
+import live.mehiz.mpvkt.ui.player.controls.components.sheets.ShaderPresetSheet
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.SubtitlesSheet
+import live.mehiz.mpvkt.ui.player.manager.DetectedSkipChapter
+import live.mehiz.mpvkt.ui.player.manager.PlaylistUiState
 
 @Composable
 fun PlayerSheets(
@@ -50,6 +57,24 @@ fun PlayerSheets(
   onResetSpeedPresets: () -> Unit,
   onMakeDefaultSpeed: (Float) -> Unit,
   onResetDefaultSpeed: () -> Unit,
+  // Shader preset sheet
+  shaderPreset: MobileShaderPreset,
+  shaderDeband: Boolean,
+  onSelectShaderPreset: (MobileShaderPreset) -> Unit,
+  onShaderDebandChange: (Boolean) -> Unit,
+  // Chapter skip sheet
+  chapterSkipMode: ChapterSkipMode,
+  skipOp: Boolean,
+  skipEd: Boolean,
+  skipPreview: Boolean,
+  detectedSkipChapters: List<DetectedSkipChapter>,
+  onChapterSkipModeChange: (ChapterSkipMode) -> Unit,
+  onSkipOpChange: (Boolean) -> Unit,
+  onSkipEdChange: (Boolean) -> Unit,
+  onSkipPreviewChange: (Boolean) -> Unit,
+  // Playlist sheet
+  playlist: PlaylistUiState,
+  onSelectPlaylistIndex: (Int) -> Unit,
   // More sheet
   backgroundPlayback: Boolean,
   statisticsPage: Int,
@@ -68,6 +93,39 @@ fun PlayerSheets(
 ) {
   when (sheetShown) {
     Sheets.None -> {}
+
+    Sheets.ShaderPresets -> {
+      ShaderPresetSheet(
+        selectedPreset = shaderPreset,
+        debandEnabled = shaderDeband,
+        onSelectPreset = onSelectShaderPreset,
+        onDebandChange = onShaderDebandChange,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
+    Sheets.ChapterSkip -> {
+      ChapterSkipSheet(
+        mode = chapterSkipMode,
+        skipOp = skipOp,
+        skipEd = skipEd,
+        skipPreview = skipPreview,
+        detectedChapters = detectedSkipChapters,
+        onModeChange = onChapterSkipModeChange,
+        onSkipOpChange = onSkipOpChange,
+        onSkipEdChange = onSkipEdChange,
+        onSkipPreviewChange = onSkipPreviewChange,
+        onDismissRequest = onDismissRequest,
+      )
+    }
+
+    Sheets.Playlist -> {
+      PlaylistSheet(
+        playlist = playlist,
+        onSelectIndex = onSelectPlaylistIndex,
+        onDismissRequest = onDismissRequest,
+      )
+    }
 
     Sheets.SubtitleTracks -> {
       val subtitlesPicker = rememberLauncherForActivityResult(

@@ -11,6 +11,6 @@ import live.mehiz.mpvkt.ui.theme.DarkMode
 @Inject
 @SingleIn(AppScope::class)
 class AppearancePreferences(preferenceStore: PreferenceStore) {
-  val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.System)
-  val materialYou = preferenceStore.getBoolean("material_you", Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+  val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.Light)
+  val materialYou = preferenceStore.getBoolean("material_you", false)
 }

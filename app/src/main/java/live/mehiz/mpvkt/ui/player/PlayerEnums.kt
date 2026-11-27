@@ -60,6 +60,9 @@ enum class Debanding(@StringRes val titleRes: Int) {
 enum class Sheets {
   None,
   PlaybackSpeed,
+  ShaderPresets,
+  ChapterSkip,
+  Playlist,
   SubtitleTracks,
   AudioTracks,
   Chapters,

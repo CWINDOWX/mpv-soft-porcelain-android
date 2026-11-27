@@ -21,11 +21,11 @@ android {
   compileSdk = 37
 
   defaultConfig {
-    applicationId = "live.mehiz.mpvkt"
+    applicationId = "com.porcelain.mpv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 12
-    versionName = "0.1.6"
+    versionCode = 1
+    versionName = "0.1.0-m1"
 
     vectorDrawables {
       useSupportLibrary = true
@@ -38,8 +38,8 @@ android {
     abi {
       isEnable = true
       reset()
-      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-      isUniversalApk = true
+      include("arm64-v8a")
+      isUniversalApk = false
     }
   }
 
@@ -56,8 +56,7 @@ android {
       initWith(getByName("release"))
 
       signingConfig = signingConfigs["debug"]
-      applicationIdSuffix = ".preview"
-      versionNameSuffix = "-${getCommitCount()}"
+      versionNameSuffix = "-m1"
     }
     named("debug") {
       applicationIdSuffix = ".debug"

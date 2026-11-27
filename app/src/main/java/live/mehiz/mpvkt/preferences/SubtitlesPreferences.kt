@@ -19,13 +19,13 @@ import live.mehiz.mpvkt.ui.player.controls.components.panels.SubtitlesBorderStyl
 @SingleIn(AppScope::class)
 class SubtitlesPreferences(preferenceStore: PreferenceStore) {
   val autoLoadExternal = preferenceStore.getBoolean("sub_autoload", true)
-  val preferredLanguages = preferenceStore.getString("sub_preferred_languages")
+  val preferredLanguages = preferenceStore.getString("sub_preferred_languages", "chs,sc,zh-cn,chi,zh,zh-tw,cht,zho")
 
   val fontsFolder = preferenceStore.getString("sub_fonts_folder")
-  val font = preferenceStore.getString("sub_font", "Sans Serif")
-  val fontSize = preferenceStore.getInt("sub_font_size", 55)
+  val font = preferenceStore.getString("sub_font", "LXGW WenKai Mono Lite")
+  val fontSize = preferenceStore.getInt("sub_font_size", 46)
   val subScale = preferenceStore.getFloat("sub_scale", 1f)
-  val borderSize = preferenceStore.getInt("sub_border_size", 3)
+  val borderSize = preferenceStore.getInt("sub_border_size", 2)
   val bold = preferenceStore.getBoolean("sub_bold")
   val italic = preferenceStore.getBoolean("sub_italic")
 

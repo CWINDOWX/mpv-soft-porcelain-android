@@ -1,67 +1,61 @@
 package live.mehiz.mpvkt.ui.player.controls
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Subtitles
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import live.mehiz.mpvkt.ui.player.Decoder
-import live.mehiz.mpvkt.ui.player.controls.components.ControlsButton
+import androidx.compose.ui.unit.dp
+import live.mehiz.mpvkt.ui.player.controls.components.PorcelainClockBatteryPill
+import live.mehiz.mpvkt.ui.player.controls.components.PorcelainPillButton
 
 @Composable
 fun TopRightPlayerControls(
-  // decoder
-  decoder: Decoder,
-  onDecoderClick: () -> Unit,
-  onDecoderLongClick: () -> Unit,
-  // chapters
-  isChaptersVisible: Boolean,
-  onChaptersClick: () -> Unit,
-  // subtitles
-  onSubtitlesClick: () -> Unit,
-  onSubtitlesLongClick: () -> Unit,
-  // audio
-  onAudioClick: () -> Unit,
-  onAudioLongClick: () -> Unit,
-  // more
+  isPipAvailable: Boolean,
+  onLockControls: () -> Unit,
+  onCycleRotation: () -> Unit,
+  onPipClick: () -> Unit,
   onMoreClick: () -> Unit,
   onMoreLongClick: () -> Unit,
-
   modifier: Modifier = Modifier,
 ) {
   Row(
-    modifier,
+    modifier = modifier,
     verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
   ) {
-    ControlsButton(
-      decoder.title,
-      onClick = onDecoderClick,
-      onLongClick = onDecoderLongClick,
+    PorcelainClockBatteryPill()
+    PorcelainPillButton(
+      icon = Icons.Filled.LockOpen,
+      contentDescription = "锁屏",
+      onClick = onLockControls,
+      size = 36.dp,
     )
-    if (isChaptersVisible) {
-      ControlsButton(
-        Icons.Default.Bookmarks,
-        onClick = onChaptersClick,
+    PorcelainPillButton(
+      icon = Icons.Filled.ScreenRotation,
+      contentDescription = "旋转",
+      onClick = onCycleRotation,
+      size = 36.dp,
+    )
+    if (isPipAvailable) {
+      PorcelainPillButton(
+        icon = Icons.Filled.PictureInPictureAlt,
+        contentDescription = "画中画",
+        onClick = onPipClick,
+        size = 36.dp,
       )
     }
-    ControlsButton(
-      Icons.Default.Subtitles,
-      onClick = onSubtitlesClick,
-      onLongClick = onSubtitlesLongClick,
-    )
-    ControlsButton(
-      Icons.Default.Audiotrack,
-      onClick = onAudioClick,
-      onLongClick = onAudioLongClick,
-    )
-    ControlsButton(
-      Icons.Default.MoreVert,
+    PorcelainPillButton(
+      icon = Icons.Filled.MoreVert,
+      contentDescription = "更多",
       onClick = onMoreClick,
       onLongClick = onMoreLongClick,
+      size = 36.dp,
     )
   }
 }

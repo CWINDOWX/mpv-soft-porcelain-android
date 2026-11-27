@@ -22,6 +22,7 @@ import live.mehiz.mpvkt.preferences.AudioPreferences
 import live.mehiz.mpvkt.preferences.DecoderPreferences
 import live.mehiz.mpvkt.preferences.GesturePreferences
 import live.mehiz.mpvkt.preferences.PlayerPreferences
+import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.preferences.SubtitlesPreferences
 import live.mehiz.mpvkt.preferences.preference.AndroidPreferenceStore
 import live.mehiz.mpvkt.preferences.preference.PreferenceStore
@@ -43,6 +44,7 @@ interface AppGraph : ViewModelGraph {
   val decoderPreferences: DecoderPreferences
   val advancedPreferences: AdvancedPreferences
   val gesturePreferences: GesturePreferences
+  val porcelainPreferences: PorcelainPreferences
 
   @Binds val CustomButtonRepositoryImpl.bind: CustomButtonRepository
 

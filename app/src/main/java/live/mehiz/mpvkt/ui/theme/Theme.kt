@@ -124,6 +124,7 @@ fun MpvKtTheme(content: @Composable () -> Unit) {
   ) {
     MaterialTheme(
       colorScheme = colorScheme,
+      typography = PorcelainTypography,
       content = content,
     )
   }

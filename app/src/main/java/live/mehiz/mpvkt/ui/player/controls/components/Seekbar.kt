@@ -1,13 +1,16 @@
 package live.mehiz.mpvkt.ui.player.controls.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -15,7 +18,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -26,7 +30,11 @@ import `is`.xyz.mpv.Utils
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import live.mehiz.mpvkt.ui.player.controls.LocalPlayerButtonsClickEvent
-import live.mehiz.mpvkt.ui.theme.spacing
+import live.mehiz.mpvkt.ui.theme.PorcelainBg
+import live.mehiz.mpvkt.ui.theme.PorcelainBlue
+import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
+import live.mehiz.mpvkt.ui.theme.PorcelainInk
+import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 
 @Composable
 fun SeekbarWithTimers(
@@ -42,35 +50,42 @@ fun SeekbarWithTimers(
   modifier: Modifier = Modifier,
 ) {
   val clickEvent = LocalPlayerButtonsClickEvent.current
+  val safeDuration = duration.coerceAtLeast(1f)
+
+  // Floating rounded porcelain capsule progress bar aligned with bottom controls dock
   Row(
-    modifier = modifier.height(48.dp),
+    modifier = modifier
+      .height(40.dp)
+      .clip(RoundedCornerShape(13.dp))
+      .background(PorcelainBg.copy(alpha = 0.90f))
+      .padding(horizontal = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     VideoTimer(
       value = position,
-      timersInverted.first,
+      isInverted = timersInverted.first,
       onClick = {
         clickEvent()
         positionTimerOnClick()
       },
-      modifier = Modifier.width(92.dp),
+      modifier = Modifier.widthIn(min = 52.dp),
     )
     Seeker(
-      value = position.coerceIn(0f, duration),
-      range = 0f..duration,
+      value = position.coerceIn(0f, safeDuration),
+      range = 0f..safeDuration,
       onValueChange = onValueChange,
       onValueChangeFinished = onValueChangeFinished,
-      readAheadValue = readAheadValue,
+      readAheadValue = readAheadValue.coerceIn(0f, safeDuration),
       segments = chapters
-        .filter { it.start in 0f..duration }
-        .let { (if (it.isNotEmpty() && it[0].start != 0f) persistentListOf(Segment("", 0f)) + it else it) + it },
+        .filter { it.start in 0f..safeDuration }
+        .let { if (it.isNotEmpty() && it[0].start != 0f) persistentListOf(Segment("", 0f)) + it else it },
       modifier = Modifier.weight(1f),
       colors = SeekerDefaults.seekerColors(
-        progressColor = MaterialTheme.colorScheme.primary,
-        thumbColor = MaterialTheme.colorScheme.primary,
-        trackColor = MaterialTheme.colorScheme.background,
-        readAheadColor = MaterialTheme.colorScheme.inversePrimary,
+        progressColor = PorcelainBlue,
+        thumbColor = PorcelainBlue,
+        trackColor = PorcelainTrack,
+        readAheadColor = PorcelainBlueSoft,
       ),
     )
     VideoTimer(
@@ -80,7 +95,7 @@ fun SeekbarWithTimers(
         clickEvent()
         durationTimerOnCLick()
       },
-      modifier = Modifier.width(92.dp),
+      modifier = Modifier.widthIn(min = 52.dp),
     )
   }
 }
@@ -91,14 +106,18 @@ fun VideoTimer(value: Float, isInverted: Boolean, modifier: Modifier = Modifier,
   Text(
     modifier = modifier
       .fillMaxHeight()
+      .clip(RoundedCornerShape(8.dp))
       .clickable(
         interactionSource = interactionSource,
         indication = ripple(),
         onClick = onClick,
       )
-      .wrapContentHeight(Alignment.CenterVertically),
+      .wrapContentHeight(Alignment.CenterVertically)
+      .padding(horizontal = 4.dp),
     text = Utils.prettyTime(value.toInt(), isInverted),
-    color = Color.White,
+    color = PorcelainInk,
+    style = MaterialTheme.typography.labelMedium,
+    fontWeight = FontWeight.SemiBold,
     textAlign = TextAlign.Center,
   )
 }

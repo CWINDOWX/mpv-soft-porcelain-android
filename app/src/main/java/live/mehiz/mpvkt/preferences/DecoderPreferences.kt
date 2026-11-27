@@ -11,8 +11,8 @@ import live.mehiz.mpvkt.ui.player.Debanding
 @SingleIn(AppScope::class)
 class DecoderPreferences(preferenceStore: PreferenceStore) {
   val tryHWDecoding = preferenceStore.getBoolean("try_hw_dec", true)
-  val gpuNext = preferenceStore.getBoolean("gpu_next")
-  val useYUV420P = preferenceStore.getBoolean("use_yuv420p", true)
+  val gpuNext = preferenceStore.getBoolean("gpu_next", true)
+  val useYUV420P = preferenceStore.getBoolean("use_yuv420p", false)
 
   val debanding = preferenceStore.getEnum("debanding", Debanding.None)
   val debandIterations = preferenceStore.getInt("deband_iterations", 1)

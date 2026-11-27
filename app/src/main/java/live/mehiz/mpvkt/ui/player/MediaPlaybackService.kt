@@ -51,21 +51,23 @@ import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.R
 import live.mehiz.mpvkt.database.entities.CustomButtonEntity
 import live.mehiz.mpvkt.database.entities.PlaybackStateEntity
+import live.mehiz.mpvkt.ui.home.LocalVideoLibrary
 import live.mehiz.mpvkt.ui.player.controls.components.panels.toColorHexString
 import live.mehiz.mpvkt.ui.player.manager.PlayerManager
+import live.mehiz.mpvkt.ui.player.manager.PlaylistUiState
 import java.io.File
 
 @Suppress("TooManyFunctions", "LargeClass")
 class MediaPlaybackService : MediaBrowserServiceCompat() {
   companion object {
-    private const val NOTIFICATION_ID = 69420
-    private const val NOTIFICATION_CHANNEL_ID = "mpvkt_playback_channel"
+    private const val NOTIFICATION_ID = 69421
+    private const val NOTIFICATION_CHANNEL_ID = "porcelain_mpv_playback_channel"
 
-    const val ACTION_PLAY = "live.mehiz.mpvkt.action.PLAY"
-    const val ACTION_PAUSE = "live.mehiz.mpvkt.action.PAUSE"
-    const val ACTION_STOP = "live.mehiz.mpvkt.action.STOP"
-    const val ACTION_SKIP_FORWARD = "live.mehiz.mpvkt.action.SKIP_FORWARD"
-    const val ACTION_SKIP_BACKWARD = "live.mehiz.mpvkt.action.SKIP_BACKWARD"
+    const val ACTION_PLAY = "com.porcelain.mpv.action.PLAY"
+    const val ACTION_PAUSE = "com.porcelain.mpv.action.PAUSE"
+    const val ACTION_STOP = "com.porcelain.mpv.action.STOP"
+    const val ACTION_SKIP_FORWARD = "com.porcelain.mpv.action.SKIP_FORWARD"
+    const val ACTION_SKIP_BACKWARD = "com.porcelain.mpv.action.SKIP_BACKWARD"
   }
 
   inner class MediaPlaybackBinder : Binder() {
@@ -208,13 +210,44 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
 
   // playback
   fun play(intent: Intent) {
+    val playlistUris = intent.getStringArrayListExtra(LocalVideoLibrary.EXTRA_PLAYLIST_URIS).orEmpty()
+    val playlistNames = intent.getStringArrayListExtra(LocalVideoLibrary.EXTRA_PLAYLIST_NAMES).orEmpty()
+    val playlistIdx = intent.getIntExtra(LocalVideoLibrary.EXTRA_PLAYLIST_INDEX, -1)
+    if (playlistUris.size > 1 && playlistIdx in playlistUris.indices) {
+      playerManager.updatePlaylist(
+        PlaylistUiState(
+          uris = playlistUris,
+          names = if (playlistNames.size == playlistUris.size) playlistNames else playlistUris.map { it.substringAfterLast('/') },
+          currentIndex = playlistIdx,
+        ),
+      )
+    } else {
+      playerManager.updatePlaylist(PlaylistUiState())
+    }
+    loadIntentInternal(intent)
+  }
+
+  private fun loadIntentInternal(intent: Intent) {
     val path = getPlayableUri(intent) ?: return
     if (fileName.isNotBlank()) saveState()
     playIntent = intent
+    playerManager.chapterSkip.resetForNewFile()
     playerManager.thumbnailer.sourceUri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
     if (hasSurface) mpv.command("loadfile", path) else pendingFile = path
     requestAudioFocus()
     mediaSession.isActive = true
+  }
+
+  fun playPlaylistIndex(index: Int) {
+    val st = playerManager.playlist.value
+    if (index !in st.uris.indices) return
+    val uriStr = st.uris[index]
+    val name = st.names.getOrNull(index)
+    playerManager.updatePlaylist(st.copy(currentIndex = index))
+    val nextIntent = Intent(Intent.ACTION_VIEW, uriStr.toUri()).apply {
+      if (!name.isNullOrBlank()) putExtra("title", name)
+    }
+    loadIntentInternal(nextIntent)
   }
 
   fun stopPlayback(fromOutside: Boolean = false) {
@@ -294,7 +327,9 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     // could mess up VO init before a surface is attached
     mpv.setOptionString("force-window", "no")
     audioPreferences.audioChannels.get().let { mpv.setPropertyString(it.property, it.value) }
-    playerManager = PlayerManager(mpv, this, App.graph, scope)
+    playerManager = PlayerManager(mpv, this, App.graph, scope).also { pm ->
+      pm.onSelectPlaylistIndex = ::playPlaylistIndex
+    }
   }
 
   private fun initOptions() {
@@ -417,19 +452,33 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
   private fun copyMPVFonts() {
     try {
       val cachePath = cacheDir.path
-      val fontsDir = fileManager.fromUri(subtitlesPreferences.fontsFolder.get().toUri())
-        ?: error("User hasn't set any fonts directory")
-      if (!fileManager.exists(fontsDir)) error("Couldn't access fonts directory")
+      val fontsDirFile = File("$cachePath/fonts")
+      if (!fontsDirFile.exists()) fontsDirFile.mkdirs()
 
-      val destDir = fileManager.fromPath("$cachePath/fonts")
-      if (!fileManager.exists(destDir)) fileManager.createDir(fileManager.fromPath(cachePath), "fonts")
-
-      if (fileManager.findFile(destDir, "subfont.ttf") == null) {
-        resources.assets.open("subfont.ttf")
-          .copyTo(File("$cachePath/fonts/subfont.ttf").outputStream())
+      // Always extract bundled LXGW WenKai Mono Lite font atomically for crisp Chinese subtitles & fallback
+      val lxgwFile = File(fontsDirFile, "LXGWWenKaiMonoLite-Regular.ttf")
+      if (!lxgwFile.exists() || lxgwFile.length() == 0L) {
+        val tmpFile = File(fontsDirFile, "lxgw.ttf.tmp")
+        resources.openRawResource(R.font.lxgw_wenkai_mono_lite).use { input ->
+          tmpFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        tmpFile.renameTo(lxgwFile)
+      }
+      val subfontFile = File(fontsDirFile, "subfont.ttf")
+      if (!subfontFile.exists() || subfontFile.length() == 0L) {
+        val tmpSub = File(fontsDirFile, "subfont.ttf.tmp")
+        lxgwFile.copyTo(tmpSub, overwrite = true)
+        tmpSub.renameTo(subfontFile)
       }
 
-      fileManager.copyDirectoryWithContent(fontsDir, destDir, false)
+      val userFontsUri = subtitlesPreferences.fontsFolder.get()
+      if (userFontsUri.isNotBlank()) {
+        val fontsDir = fileManager.fromUri(userFontsUri.toUri())
+        val destDir = fileManager.fromPath(fontsDirFile.absolutePath)
+        if (fontsDir != null && fileManager.exists(fontsDir)) {
+          fileManager.copyDirectoryWithContent(fontsDir, destDir, false)
+        }
+      }
     } catch (e: Exception) {
       Log.e(TAG, "Couldn't copy fonts to application directory: ${e.message}")
     }
@@ -504,6 +553,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     setIntentExtras(intent.extras)
     val title = mpv.getPropertyString("media-title")
     if (title.isNullOrBlank() || title.isDigitsOnly()) mpv.setPropertyString("media-title", fileName)
+    playerManager.shaders.applyCurrent()
     val name = fileName
     ioScope.launch { loadVideoPlaybackState(name) }
   }
