@@ -3,6 +3,8 @@ import dev.detekt.gradle.Detekt
 import org.apache.commons.io.output.ByteArrayOutputStream
 import org.gradle.kotlin.dsl.aboutLibraries
 import org.gradle.process.ExecOperations
+import java.io.FileInputStream
+import java.util.Properties
 import javax.inject.Inject
 
 plugins {
@@ -24,8 +26,8 @@ android {
     applicationId = "com.porcelain.mpv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "0.2.0"
+    versionCode = 4
+    versionName = "0.2.1"
 
     vectorDrawables {
       useSupportLibrary = true
@@ -43,6 +45,37 @@ android {
     }
   }
 
+  val keystorePropsFile = rootProject.file("keystore.properties")
+  val keystoreProps = Properties().apply {
+    if (keystorePropsFile.isFile) {
+      FileInputStream(keystorePropsFile).use { load(it) }
+    }
+  }
+  fun signingValue(propKey: String, envKey: String): String? =
+    keystoreProps.getProperty(propKey)?.takeIf { it.isNotBlank() }
+      ?: System.getenv(envKey)?.takeIf { it.isNotBlank() }
+
+  val releaseStoreFilePath = signingValue("storeFile", "RELEASE_STORE_FILE")
+  val releaseStorePassword = signingValue("storePassword", "RELEASE_STORE_PASSWORD")
+  val releaseKeyAlias = signingValue("keyAlias", "RELEASE_KEY_ALIAS")
+  val releaseKeyPassword = signingValue("keyPassword", "RELEASE_KEY_PASSWORD")
+  val hasReleaseSigning = !releaseStoreFilePath.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank() &&
+    rootProject.file(releaseStoreFilePath).isFile
+
+  signingConfigs {
+    if (hasReleaseSigning) {
+      create("release") {
+        storeFile = rootProject.file(releaseStoreFilePath!!)
+        storePassword = releaseStorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
+  }
+
   buildTypes {
     named("release") {
       isMinifyEnabled = true
@@ -51,11 +84,18 @@ android {
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard-rules.pro",
       )
+      if (hasReleaseSigning) {
+        signingConfig = signingConfigs.getByName("release")
+      }
     }
     create("preview") {
       initWith(getByName("release"))
 
-      signingConfig = signingConfigs["debug"]
+      signingConfig = if (hasReleaseSigning) {
+        signingConfigs.getByName("release")
+      } else {
+        signingConfigs["debug"]
+      }
       versionNameSuffix = ""
     }
     named("debug") {

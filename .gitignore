@@ -9,3 +9,6 @@
 .cxx
 local.properties
 /dist/
+keystore.properties
+*.jks
+*.keystore

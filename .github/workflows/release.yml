@@ -27,16 +27,52 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build arm64 preview APK
+      - name: Decode Release Keystore
+        id: signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/porcelain-release.jks"
+            echo "RELEASE_STORE_FILE=$RUNNER_TEMP/porcelain-release.jks" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "::error::Missing release signing secrets (RELEASE_KEYSTORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD)."
+            exit 1
+          else
+            echo "::warning::Release signing secrets not configured; falling back to debug-signed preview APK."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build arm64 APK
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assemblePreview --no-daemon --stacktrace
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          else
+            ./gradlew :app:assemblePreview --no-daemon --stacktrace
+          fi
 
       - name: Rename APK artifact
         run: |
-          APK=$(find app/build/outputs/apk/preview -name "*.apk" | head -n 1)
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          else
+            APK=$(find app/build/outputs/apk/preview -name "*.apk" | head -n 1)
+          fi
           mkdir -p dist
           cp "$APK" dist/Porcelain-MPV-arm64.apk
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/porcelain-release.jks"
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4

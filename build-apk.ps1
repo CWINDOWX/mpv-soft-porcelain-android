@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("preview", "debug")]
+    [ValidateSet("release", "preview", "debug")]
     [string]$Variant = "preview"
 )
 
@@ -9,14 +9,18 @@ if (-not $env:ANDROID_SDK_ROOT -and $env:ANDROID_HOME) { $env:ANDROID_SDK_ROOT =
 if (-not $env:GRADLE_USER_HOME -and (Test-Path "E:\Android\.gradle")) { $env:GRADLE_USER_HOME = "E:\Android\.gradle" }
 if ($env:JAVA_HOME) { $env:PATH = "$env:JAVA_HOME\bin;$env:PATH" }
 
-$task = if ($Variant -eq "debug") { ":app:assembleDebug" } else { ":app:assemblePreview" }
+$task = switch ($Variant) {
+    "release" { ":app:assembleRelease" }
+    "debug"   { ":app:assembleDebug" }
+    default   { ":app:assemblePreview" }
+}
 Push-Location $PSScriptRoot
 try {
     & cmd /c "gradlew.bat $task --max-workers=4 --console=plain"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $outDir = Join-Path $PSScriptRoot "app\build\outputs\apk\$Variant"
     $apk = Get-ChildItem $outDir -Filter "*.apk" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($apk -and $Variant -eq "preview") {
+    if ($apk -and ($Variant -eq "preview" -or $Variant -eq "release")) {
         $distDir = Join-Path $PSScriptRoot "dist"
         New-Item -ItemType Directory -Force $distDir | Out-Null
         $dest = Join-Path $distDir "Porcelain-MPV-arm64.apk"
