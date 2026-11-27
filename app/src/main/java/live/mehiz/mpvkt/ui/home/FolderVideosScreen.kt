@@ -53,13 +53,6 @@ import kotlinx.serialization.Serializable
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.database.entities.PlaybackStateEntity
 import live.mehiz.mpvkt.presentation.Screen
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainMuted
-import live.mehiz.mpvkt.ui.theme.PorcelainSurface
-import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 import live.mehiz.mpvkt.ui.utils.LocalBackStack
 
 @Serializable
@@ -73,6 +66,7 @@ data class FolderVideosScreen(
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val playbackRepo = App.graph.playbackStateRepository
+    val cs = MaterialTheme.colorScheme
 
     var videos by remember { mutableStateOf<List<LocalVideoItem>>(emptyList()) }
     var statesByTitle by remember { mutableStateOf<Map<String, PlaybackStateEntity>>(emptyMap()) }
@@ -93,13 +87,13 @@ data class FolderVideosScreen(
     }
 
     Scaffold(
-      containerColor = PorcelainBg,
+      containerColor = cs.background,
       topBar = {
         TopAppBar(
           colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = PorcelainBg,
-            titleContentColor = PorcelainInk,
-            navigationIconContentColor = PorcelainInk,
+            containerColor = cs.background,
+            titleContentColor = cs.onSurface,
+            navigationIconContentColor = cs.onSurface,
           ),
           title = {
             Column {
@@ -114,7 +108,7 @@ data class FolderVideosScreen(
                 Text(
                   text = "${videos.size} 个视频",
                   style = MaterialTheme.typography.bodySmall,
-                  color = PorcelainMuted,
+                  color = cs.onSurfaceVariant,
                 )
               }
             }
@@ -135,7 +129,7 @@ data class FolderVideosScreen(
               .padding(padding),
             contentAlignment = Alignment.Center,
           ) {
-            CircularProgressIndicator(color = PorcelainBlue)
+            CircularProgressIndicator(color = cs.primary)
           }
         }
 
@@ -148,7 +142,7 @@ data class FolderVideosScreen(
           ) {
             Text(
               text = "该文件夹下暂无视频",
-              color = PorcelainMuted,
+              color = cs.onSurfaceVariant,
               style = MaterialTheme.typography.bodyLarge,
             )
           }
@@ -190,13 +184,14 @@ private fun EpisodeVideoCard(
   lastPositionSec: Int,
   onClick: () -> Unit,
 ) {
+  val cs = MaterialTheme.colorScheme
   val parsed = remember(video.displayName) { SmartTitleParser.parse(video.displayName) }
   Surface(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
       .clickable(onClick = onClick),
-    color = PorcelainSurface,
+    color = cs.surfaceContainerLow,
     shape = RoundedCornerShape(16.dp),
     shadowElevation = 0.dp,
   ) {
@@ -211,7 +206,7 @@ private fun EpisodeVideoCard(
           modifier = Modifier
             .size(44.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(if (progress > 0f) PorcelainBlue else PorcelainBlueSoft),
+            .background(if (progress > 0f) cs.primary else cs.primaryContainer),
           contentAlignment = Alignment.Center,
         ) {
           if (parsed.episodeNumber != null) {
@@ -219,14 +214,14 @@ private fun EpisodeVideoCard(
               text = "E${parsed.episodeNumber}",
               style = MaterialTheme.typography.labelLarge,
               fontWeight = FontWeight.Bold,
-              color = if (progress > 0f) PorcelainSurface else PorcelainBlue,
+              color = if (progress > 0f) cs.onPrimary else cs.onPrimaryContainer,
               maxLines = 1,
             )
           } else {
             Icon(
               imageVector = if (progress > 0f) Icons.Filled.PlayArrow else Icons.Filled.Movie,
               contentDescription = null,
-              tint = if (progress > 0f) PorcelainSurface else PorcelainBlue,
+              tint = if (progress > 0f) cs.onPrimary else cs.onPrimaryContainer,
               modifier = Modifier.size(22.dp),
             )
           }
@@ -239,7 +234,7 @@ private fun EpisodeVideoCard(
             text = parsed.displayTitle,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
-            color = PorcelainInk,
+            color = cs.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
@@ -247,7 +242,7 @@ private fun EpisodeVideoCard(
           Text(
             text = video.displayName,
             style = MaterialTheme.typography.bodySmall,
-            color = PorcelainMuted,
+            color = cs.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
@@ -259,18 +254,18 @@ private fun EpisodeVideoCard(
             Text(
               text = LocalVideoLibrary.formatDuration(video.durationMs),
               style = MaterialTheme.typography.labelSmall,
-              color = PorcelainMuted,
+              color = cs.onSurfaceVariant,
             )
             Text(
               text = LocalVideoLibrary.formatSize(video.sizeBytes),
               style = MaterialTheme.typography.labelSmall,
-              color = PorcelainMuted,
+              color = cs.onSurfaceVariant,
             )
             if (lastPositionSec > 0) {
               Text(
                 text = "已播 ${LocalVideoLibrary.formatDuration(lastPositionSec * 1000L)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = PorcelainBlue,
+                color = cs.primary,
                 fontWeight = FontWeight.Medium,
               )
             }
@@ -284,8 +279,8 @@ private fun EpisodeVideoCard(
           modifier = Modifier
             .fillMaxWidth()
             .height(3.dp),
-          color = PorcelainBlue,
-          trackColor = PorcelainTrack.copy(alpha = 0.55f),
+          color = cs.primary,
+          trackColor = cs.surfaceVariant.copy(alpha = 0.7f),
           drawStopIndicator = {},
         )
       }

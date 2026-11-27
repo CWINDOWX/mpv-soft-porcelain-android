@@ -43,9 +43,13 @@ class MainActivity : ComponentActivity() {
       val dark by appearancePreferences.darkMode.collectAsState()
       val isSystemInDarkTheme = isSystemInDarkTheme()
       enableEdgeToEdge(
-        SystemBarStyle.auto(
-          lightScrim = Color.White.toArgb(),
-          darkScrim = Color.White.toArgb(),
+        statusBarStyle = SystemBarStyle.auto(
+          lightScrim = Color.Transparent.toArgb(),
+          darkScrim = Color.Transparent.toArgb(),
+        ) { dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme) },
+        navigationBarStyle = SystemBarStyle.auto(
+          lightScrim = Color.Transparent.toArgb(),
+          darkScrim = Color.Transparent.toArgb(),
         ) { dark == DarkMode.Dark || (dark == DarkMode.System && isSystemInDarkTheme) },
       )
       MpvKtTheme { Surface { Navigator() } }

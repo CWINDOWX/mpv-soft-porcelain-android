@@ -57,8 +57,8 @@ val inversePrimaryLight = Color(0xFF93C5FD)
 val surfaceDimLight = Color(0xFFE6ECF4)
 val surfaceBrightLight = PorcelainSurface
 val surfaceContainerLowestLight = PorcelainSurface
-val surfaceContainerLowLight = PorcelainContainerLow
-val surfaceContainerLight = PorcelainContainer
+val surfaceContainerLowLight = PorcelainSurface
+val surfaceContainerLight = Color(0xFFF0F4FA)
 val surfaceContainerHighLight = PorcelainContainerHigh
 val surfaceContainerHighestLight = PorcelainContainerHighest
 

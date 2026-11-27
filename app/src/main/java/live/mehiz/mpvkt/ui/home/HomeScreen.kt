@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -74,12 +73,6 @@ import live.mehiz.mpvkt.R
 import live.mehiz.mpvkt.presentation.Screen
 import live.mehiz.mpvkt.ui.player.PlayerActivity
 import live.mehiz.mpvkt.ui.preferences.PreferencesScreen
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainMuted
-import live.mehiz.mpvkt.ui.theme.PorcelainSurface
 import live.mehiz.mpvkt.ui.utils.LocalBackStack
 
 @Serializable
@@ -99,6 +92,7 @@ object HomeScreen : Screen {
     val context = LocalContext.current
     val backstack = LocalBackStack.current
     val playbackRepo = App.graph.playbackStateRepository
+    val cs = MaterialTheme.colorScheme
 
     var permissionGranted by remember { mutableStateOf(hasVideoPermission(context)) }
     var folders by remember { mutableStateOf<List<LocalVideoFolder>>(emptyList()) }
@@ -153,13 +147,13 @@ object HomeScreen : Screen {
     }
 
     Scaffold(
-      containerColor = PorcelainBg,
+      containerColor = cs.background,
       topBar = {
         TopAppBar(
           colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = PorcelainBg,
-            titleContentColor = PorcelainInk,
-            actionIconContentColor = PorcelainInk,
+            containerColor = cs.background,
+            titleContentColor = cs.onSurface,
+            actionIconContentColor = cs.onSurface,
           ),
           navigationIcon = {
             Image(
@@ -206,7 +200,7 @@ object HomeScreen : Screen {
             contentAlignment = Alignment.Center,
           ) {
             Surface(
-              color = PorcelainSurface,
+              color = cs.surfaceContainerLow,
               shape = RoundedCornerShape(20.dp),
               modifier = Modifier.fillMaxWidth(),
             ) {
@@ -219,13 +213,13 @@ object HomeScreen : Screen {
                   modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(PorcelainBlueSoft),
+                    .background(cs.primaryContainer),
                   contentAlignment = Alignment.Center,
                 ) {
                   Icon(
                     imageVector = Icons.Filled.Folder,
                     contentDescription = null,
-                    tint = PorcelainBlue,
+                    tint = cs.onPrimaryContainer,
                     modifier = Modifier.size(30.dp),
                   )
                 }
@@ -233,22 +227,18 @@ object HomeScreen : Screen {
                   text = "本地番剧库",
                   style = MaterialTheme.typography.titleLarge,
                   fontWeight = FontWeight.Bold,
-                  color = PorcelainInk,
+                  color = cs.onSurface,
                 )
                 Text(
                   text = "授权读取本地视频后，将按文件夹自动整理番剧并支持同目录连播与进度记录。",
                   style = MaterialTheme.typography.bodyMedium,
-                  color = PorcelainMuted,
+                  color = cs.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                   onClick = { permissionLauncher.launch(requiredVideoPermission()) },
                   modifier = Modifier.fillMaxWidth(),
                   shape = RoundedCornerShape(12.dp),
-                  colors = ButtonDefaults.buttonColors(
-                    containerColor = PorcelainBlue,
-                    contentColor = PorcelainSurface,
-                  ),
                 ) {
                   Text("授权扫描本地视频", fontWeight = FontWeight.SemiBold)
                 }
@@ -273,7 +263,7 @@ object HomeScreen : Screen {
               .padding(padding),
             contentAlignment = Alignment.Center,
           ) {
-            CircularProgressIndicator(color = PorcelainBlue)
+            CircularProgressIndicator(color = cs.primary)
           }
         }
 
@@ -292,18 +282,17 @@ object HomeScreen : Screen {
               Text(
                 text = "未扫描到本地视频",
                 style = MaterialTheme.typography.titleMedium,
-                color = PorcelainInk,
+                color = cs.onSurface,
                 fontWeight = FontWeight.SemiBold,
               )
               Text(
                 text = "可点击右上角文件图标直接打开视频，或浏览指定目录",
                 style = MaterialTheme.typography.bodySmall,
-                color = PorcelainMuted,
+                color = cs.onSurfaceVariant,
               )
               Button(
                 onClick = { documentPicker.launch(arrayOf("video/*", "*/*")) },
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PorcelainBlue),
               ) {
                 Text("选择本地视频")
               }
@@ -350,12 +339,13 @@ private fun FolderCard(
   watchedCount: Int,
   onClick: () -> Unit,
 ) {
+  val cs = MaterialTheme.colorScheme
   Surface(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(16.dp))
       .clickable(onClick = onClick),
-    color = PorcelainSurface,
+    color = cs.surfaceContainerLow,
     shape = RoundedCornerShape(16.dp),
     shadowElevation = 0.dp,
   ) {
@@ -369,13 +359,13 @@ private fun FolderCard(
         modifier = Modifier
           .size(46.dp)
           .clip(RoundedCornerShape(13.dp))
-          .background(PorcelainBlueSoft),
+          .background(cs.primaryContainer),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
           imageVector = Icons.Filled.Folder,
           contentDescription = null,
-          tint = PorcelainBlue,
+          tint = cs.onPrimaryContainer,
           modifier = Modifier.size(24.dp),
         )
       }
@@ -387,7 +377,7 @@ private fun FolderCard(
           text = folder.name,
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
-          color = PorcelainInk,
+          color = cs.onSurface,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
@@ -399,13 +389,13 @@ private fun FolderCard(
           Text(
             text = "${folder.videoCount} 集",
             style = MaterialTheme.typography.bodySmall,
-            color = PorcelainMuted,
+            color = cs.onSurfaceVariant,
           )
           if (watchedCount > 0) {
             Text(
               text = "已看 $watchedCount",
               style = MaterialTheme.typography.labelSmall,
-              color = PorcelainBlue,
+              color = cs.primary,
               fontWeight = FontWeight.SemiBold,
             )
           }
@@ -413,7 +403,7 @@ private fun FolderCard(
             Text(
               text = folder.relativePath,
               style = MaterialTheme.typography.labelSmall,
-              color = PorcelainMuted.copy(alpha = 0.78f),
+              color = cs.onSurfaceVariant.copy(alpha = 0.78f),
               maxLines = 1,
               overflow = TextOverflow.Ellipsis,
             )
@@ -424,7 +414,7 @@ private fun FolderCard(
       Icon(
         imageVector = Icons.Filled.ChevronRight,
         contentDescription = null,
-        tint = PorcelainMuted,
+        tint = cs.onSurfaceVariant,
         modifier = Modifier.size(20.dp),
       )
     }

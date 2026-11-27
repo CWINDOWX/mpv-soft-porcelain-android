@@ -30,11 +30,6 @@ import `is`.xyz.mpv.Utils
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import live.mehiz.mpvkt.ui.player.controls.LocalPlayerButtonsClickEvent
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 
 @Composable
 fun SeekbarWithTimers(
@@ -49,15 +44,16 @@ fun SeekbarWithTimers(
   chapters: ImmutableList<Segment>,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val safeDuration = duration.coerceAtLeast(1f)
 
-  // Floating rounded porcelain capsule progress bar aligned with bottom controls dock
+  // Floating rounded capsule progress bar aligned with bottom controls dock
   Row(
     modifier = modifier
       .height(40.dp)
       .clip(RoundedCornerShape(13.dp))
-      .background(PorcelainBg.copy(alpha = 0.90f))
+      .background(cs.surfaceContainer.copy(alpha = 0.90f))
       .padding(horizontal = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -82,10 +78,10 @@ fun SeekbarWithTimers(
         .let { if (it.isNotEmpty() && it[0].start != 0f) persistentListOf(Segment("", 0f)) + it else it },
       modifier = Modifier.weight(1f),
       colors = SeekerDefaults.seekerColors(
-        progressColor = PorcelainBlue,
-        thumbColor = PorcelainBlue,
-        trackColor = PorcelainTrack,
-        readAheadColor = PorcelainBlueSoft,
+        progressColor = cs.primary,
+        thumbColor = cs.primary,
+        trackColor = cs.outlineVariant,
+        readAheadColor = cs.primaryContainer,
       ),
     )
     VideoTimer(
@@ -115,7 +111,7 @@ fun VideoTimer(value: Float, isInverted: Boolean, modifier: Modifier = Modifier,
       .wrapContentHeight(Alignment.CenterVertically)
       .padding(horizontal = 4.dp),
     text = Utils.prettyTime(value.toInt(), isInverted),
-    color = PorcelainInk,
+    color = MaterialTheme.colorScheme.onSurface,
     style = MaterialTheme.typography.labelMedium,
     fontWeight = FontWeight.SemiBold,
     textAlign = TextAlign.Center,

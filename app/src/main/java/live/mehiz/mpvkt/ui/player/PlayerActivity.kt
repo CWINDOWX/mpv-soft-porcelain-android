@@ -302,7 +302,12 @@ class PlayerActivity : AppCompatActivity() {
     service?.let { service ->
       service.saveState()
       if (!isFinishing) {
-        if (playerPreferences.automaticBackgroundPlayback.get()) service.enterBackground() else viewModel.pause()
+        if (playerPreferences.automaticBackgroundPlayback.get()) {
+          service.enterBackground()
+        } else {
+          service.cancelAutoPlay()
+          viewModel.pause()
+        }
       }
     }
     super.onStop()

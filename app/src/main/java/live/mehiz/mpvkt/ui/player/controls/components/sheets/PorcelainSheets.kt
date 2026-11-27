@@ -25,7 +25,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -41,13 +40,6 @@ import live.mehiz.mpvkt.presentation.components.PlayerSheet
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
 import live.mehiz.mpvkt.ui.player.manager.DetectedSkipChapter
 import live.mehiz.mpvkt.ui.player.manager.PlaylistUiState
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainMuted
-import live.mehiz.mpvkt.ui.theme.PorcelainOutlineVariant
-import live.mehiz.mpvkt.ui.theme.PorcelainSurface
 
 @Composable
 fun ShaderPresetSheet(
@@ -58,11 +50,12 @@ fun ShaderPresetSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .background(PorcelainBg)
+        .background(cs.surfaceContainer)
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 18.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -79,21 +72,21 @@ fun ShaderPresetSheet(
           Icon(
             imageVector = Icons.Filled.AutoFixHigh,
             contentDescription = null,
-            tint = PorcelainBlue,
+            tint = cs.primary,
             modifier = Modifier.size(20.dp),
           )
           Text(
             text = "画质预设",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = PorcelainInk,
+            color = cs.onSurface,
           )
         }
         Text(
           text = selectedPreset.title,
           style = MaterialTheme.typography.labelMedium,
           fontWeight = FontWeight.SemiBold,
-          color = PorcelainBlue,
+          color = cs.primary,
         )
       }
 
@@ -105,7 +98,7 @@ fun ShaderPresetSheet(
           modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isSelected) PorcelainBlue else PorcelainSurface)
+            .background(if (isSelected) cs.primary else cs.surfaceBright)
             .clickable { onSelectPreset(preset) }
             .padding(horizontal = 14.dp, vertical = 11.dp),
           verticalAlignment = Alignment.CenterVertically,
@@ -116,18 +109,18 @@ fun ShaderPresetSheet(
               text = preset.title,
               style = MaterialTheme.typography.bodyLarge,
               fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-              color = if (isSelected) PorcelainSurface else PorcelainInk,
+              color = if (isSelected) cs.onPrimary else cs.onSurface,
             )
             Text(
               text = preset.subtitle,
               style = MaterialTheme.typography.bodySmall,
-              color = if (isSelected) PorcelainSurface.copy(alpha = 0.85f) else PorcelainMuted,
+              color = if (isSelected) cs.onPrimary.copy(alpha = 0.85f) else cs.onSurfaceVariant,
             )
           }
           Icon(
             imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
             contentDescription = null,
-            tint = if (isSelected) PorcelainSurface else PorcelainMuted.copy(alpha = 0.6f),
+            tint = if (isSelected) cs.onPrimary else cs.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier.size(20.dp),
           )
         }
@@ -135,14 +128,14 @@ fun ShaderPresetSheet(
 
       HorizontalDivider(
         modifier = Modifier.padding(vertical = 4.dp),
-        color = PorcelainOutlineVariant,
+        color = cs.outlineVariant,
       )
 
       Row(
         modifier = Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(12.dp))
-          .background(PorcelainSurface)
+          .background(cs.surfaceBright)
           .clickable { onDebandChange(!debandEnabled) }
           .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -153,21 +146,17 @@ fun ShaderPresetSheet(
             text = "去色带 (Deband)",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
-            color = PorcelainInk,
+            color = cs.onSurface,
           )
           Text(
             text = "平滑暗部与渐变色阶断层",
             style = MaterialTheme.typography.bodySmall,
-            color = PorcelainMuted,
+            color = cs.onSurfaceVariant,
           )
         }
         Switch(
           checked = debandEnabled,
           onCheckedChange = onDebandChange,
-          colors = SwitchDefaults.colors(
-            checkedThumbColor = PorcelainSurface,
-            checkedTrackColor = PorcelainBlue,
-          ),
         )
       }
     }
@@ -188,11 +177,12 @@ fun ChapterSkipSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .background(PorcelainBg)
+        .background(cs.surfaceContainer)
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 18.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -201,7 +191,7 @@ fun ChapterSkipSheet(
         text = "跳过 OP / ED",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        color = PorcelainInk,
+        color = cs.onSurface,
       )
 
       // 3-way mode selector pills
@@ -215,7 +205,7 @@ fun ChapterSkipSheet(
             modifier = Modifier
               .weight(1f)
               .clip(RoundedCornerShape(11.dp))
-              .background(if (active) PorcelainBlue else PorcelainSurface)
+              .background(if (active) cs.primary else cs.surfaceBright)
               .clickable { onModeChange(item) }
               .padding(vertical = 10.dp),
             contentAlignment = Alignment.Center,
@@ -224,7 +214,7 @@ fun ChapterSkipSheet(
               text = item.title,
               style = MaterialTheme.typography.labelLarge,
               fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-              color = if (active) PorcelainSurface else PorcelainInk,
+              color = if (active) cs.onPrimary else cs.onSurface,
             )
           }
         }
@@ -244,7 +234,7 @@ fun ChapterSkipSheet(
       Text(
         text = summaryText,
         style = MaterialTheme.typography.bodySmall,
-        color = PorcelainMuted,
+        color = cs.onSurfaceVariant,
         modifier = Modifier.padding(top = 2.dp),
       )
     }
@@ -253,11 +243,12 @@ fun ChapterSkipSheet(
 
 @Composable
 private fun SkipToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+  val cs = MaterialTheme.colorScheme
   Row(
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(12.dp))
-      .background(PorcelainSurface)
+      .background(cs.surfaceBright)
       .clickable { onCheckedChange(!checked) }
       .padding(horizontal = 14.dp, vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -267,15 +258,11 @@ private fun SkipToggleRow(label: String, checked: Boolean, onCheckedChange: (Boo
       text = label,
       style = MaterialTheme.typography.bodyMedium,
       fontWeight = FontWeight.Medium,
-      color = PorcelainInk,
+      color = cs.onSurface,
     )
     Switch(
       checked = checked,
       onCheckedChange = onCheckedChange,
-      colors = SwitchDefaults.colors(
-        checkedThumbColor = PorcelainSurface,
-        checkedTrackColor = PorcelainBlue,
-      ),
     )
   }
 }
@@ -287,11 +274,12 @@ fun PlaylistSheet(
   onDismissRequest: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .background(PorcelainBg)
+        .background(cs.surfaceContainer)
         .padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
       Row(
@@ -303,12 +291,12 @@ fun PlaylistSheet(
           text = "选集列表",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
-          color = PorcelainInk,
+          color = cs.onSurface,
         )
         Text(
           text = "${playlist.currentIndex + 1} / ${playlist.names.size}",
           style = MaterialTheme.typography.labelMedium,
-          color = PorcelainBlue,
+          color = cs.primary,
           fontWeight = FontWeight.SemiBold,
         )
       }
@@ -323,7 +311,7 @@ fun PlaylistSheet(
             modifier = Modifier
               .fillMaxWidth()
               .clip(RoundedCornerShape(12.dp))
-              .background(if (current) PorcelainBlue else PorcelainSurface)
+              .background(if (current) cs.primary else cs.surfaceBright)
               .clickable {
                 onSelectIndex(index)
                 onDismissRequest()
@@ -336,14 +324,14 @@ fun PlaylistSheet(
               modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(if (current) PorcelainSurface else PorcelainBlueSoft),
+                .background(if (current) cs.onPrimary else cs.primaryContainer),
               contentAlignment = Alignment.Center,
             ) {
               if (current) {
                 Icon(
                   imageVector = Icons.Filled.PlayArrow,
                   contentDescription = null,
-                  tint = PorcelainBlue,
+                  tint = cs.primary,
                   modifier = Modifier.size(16.dp),
                 )
               } else {
@@ -351,7 +339,7 @@ fun PlaylistSheet(
                   text = parsed.episodeNumber ?: "${index + 1}",
                   style = MaterialTheme.typography.labelSmall,
                   fontWeight = FontWeight.Bold,
-                  color = PorcelainBlue,
+                  color = cs.onPrimaryContainer,
                   maxLines = 1,
                 )
               }
@@ -361,14 +349,14 @@ fun PlaylistSheet(
                 text = parsed.displayTitle,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (current) FontWeight.Bold else FontWeight.Medium,
-                color = if (current) PorcelainSurface else PorcelainInk,
+                color = if (current) cs.onPrimary else cs.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
               )
               Text(
                 text = rawName,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (current) PorcelainSurface.copy(alpha = 0.8f) else PorcelainMuted,
+                color = if (current) cs.onPrimary.copy(alpha = 0.8f) else cs.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
               )

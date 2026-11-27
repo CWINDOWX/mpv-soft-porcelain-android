@@ -22,16 +22,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import live.mehiz.mpvkt.R
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
 
 @Composable
 fun PlayerUpdate(modifier: Modifier = Modifier, content: @Composable () -> Unit = {}) {
   Box(
     modifier = modifier
       .clip(RoundedCornerShape(14.dp))
-      .background(PorcelainBg.copy(alpha = 0.94f))
+      .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f))
       .padding(vertical = 7.dp, horizontal = 14.dp)
       .animateContentSize(),
     contentAlignment = Alignment.Center,
@@ -43,7 +40,7 @@ fun TextPlayerUpdate(text: String, modifier: Modifier = Modifier) {
   PlayerUpdate(modifier) {
     Text(
       text = text,
-      color = PorcelainInk,
+      color = MaterialTheme.colorScheme.onSurface,
       style = MaterialTheme.typography.labelLarge,
       fontWeight = FontWeight.SemiBold,
     )
@@ -52,6 +49,7 @@ fun TextPlayerUpdate(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun MultipleSpeedPlayerUpdate(currentSpeed: Float, modifier: Modifier = Modifier) {
+  val cs = MaterialTheme.colorScheme
   PlayerUpdate(modifier) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
@@ -59,14 +57,14 @@ fun MultipleSpeedPlayerUpdate(currentSpeed: Float, modifier: Modifier = Modifier
     ) {
       Text(
         text = stringResource(R.string.player_speed, currentSpeed),
-        color = PorcelainBlue,
+        color = cs.primary,
         fontWeight = FontWeight.Bold,
         style = MaterialTheme.typography.titleSmall,
       )
       Icon(
         imageVector = Icons.Filled.DoubleArrow,
         contentDescription = null,
-        tint = PorcelainBlue,
+        tint = cs.primary,
         modifier = Modifier.size(18.dp),
       )
     }

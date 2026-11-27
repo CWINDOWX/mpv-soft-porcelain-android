@@ -32,11 +32,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import live.mehiz.mpvkt.R
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainError
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -54,13 +49,14 @@ fun VerticalSlider(
   overflowValue: Float? = null,
   overflowRange: ClosedFloatingPointRange<Float>? = null,
 ) {
+  val cs = MaterialTheme.colorScheme
   val safeValue = value.coerceIn(range.start, range.endInclusive)
   Box(
     modifier = modifier
       .height(112.dp)
       .width(10.dp)
       .clip(RoundedCornerShape(8.dp))
-      .background(PorcelainTrack),
+      .background(cs.outlineVariant),
     contentAlignment = Alignment.BottomCenter,
   ) {
     val targetHeight by animateFloatAsState(percentage(safeValue, range), label = "vsliderheight")
@@ -69,7 +65,7 @@ fun VerticalSlider(
         .fillMaxWidth()
         .fillMaxHeight(targetHeight)
         .clip(RoundedCornerShape(8.dp))
-        .background(PorcelainBlue),
+        .background(cs.primary),
     )
     if (overflowRange != null && overflowValue != null && overflowValue > overflowRange.start) {
       val overflowHeight by animateFloatAsState(
@@ -81,7 +77,7 @@ fun VerticalSlider(
           .fillMaxWidth()
           .fillMaxHeight(overflowHeight)
           .clip(RoundedCornerShape(8.dp))
-          .background(PorcelainError.copy(alpha = 0.85f)),
+          .background(cs.error.copy(alpha = 0.85f)),
       )
     }
   }
@@ -95,13 +91,14 @@ fun VerticalSlider(
   overflowValue: Int? = null,
   overflowRange: ClosedRange<Int>? = null,
 ) {
+  val cs = MaterialTheme.colorScheme
   val safeValue = value.coerceIn(range.start, range.endInclusive)
   Box(
     modifier = modifier
       .height(112.dp)
       .width(10.dp)
       .clip(RoundedCornerShape(8.dp))
-      .background(PorcelainTrack),
+      .background(cs.outlineVariant),
     contentAlignment = Alignment.BottomCenter,
   ) {
     val targetHeight by animateFloatAsState(percentage(safeValue, range), label = "vsliderheight")
@@ -110,7 +107,7 @@ fun VerticalSlider(
         .fillMaxWidth()
         .fillMaxHeight(targetHeight)
         .clip(RoundedCornerShape(8.dp))
-        .background(PorcelainBlue),
+        .background(cs.primary),
     )
     if (overflowRange != null && overflowValue != null && overflowValue > overflowRange.start) {
       val overflowHeight by animateFloatAsState(
@@ -122,7 +119,7 @@ fun VerticalSlider(
           .fillMaxWidth()
           .fillMaxHeight(overflowHeight)
           .clip(RoundedCornerShape(8.dp))
-          .background(PorcelainError.copy(alpha = 0.85f)),
+          .background(cs.error.copy(alpha = 0.85f)),
       )
     }
   }
@@ -130,10 +127,11 @@ fun VerticalSlider(
 
 @Composable
 fun BrightnessSlider(brightness: Float, range: ClosedFloatingPointRange<Float>, modifier: Modifier = Modifier) {
+  val cs = MaterialTheme.colorScheme
   Column(
     modifier = modifier
       .clip(RoundedCornerShape(16.dp))
-      .background(PorcelainBg.copy(alpha = 0.92f))
+      .background(cs.surfaceContainer.copy(alpha = 0.92f))
       .padding(horizontal = 10.dp, vertical = 12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -142,7 +140,7 @@ fun BrightnessSlider(brightness: Float, range: ClosedFloatingPointRange<Float>, 
       text = "${(brightness * 100).roundToInt()}%",
       style = MaterialTheme.typography.labelSmall,
       fontWeight = FontWeight.Bold,
-      color = PorcelainInk,
+      color = cs.onSurface,
     )
     VerticalSlider(brightness, range)
     Icon(
@@ -152,7 +150,7 @@ fun BrightnessSlider(brightness: Float, range: ClosedFloatingPointRange<Float>, 
         else -> Icons.Default.BrightnessHigh
       },
       contentDescription = null,
-      tint = PorcelainBlue,
+      tint = cs.primary,
       modifier = Modifier.size(18.dp),
     )
   }
@@ -167,11 +165,12 @@ fun VolumeSlider(
   modifier: Modifier = Modifier,
   displayAsPercentage: Boolean = false,
 ) {
+  val cs = MaterialTheme.colorScheme
   val pct = (percentage(volume, range) * 100).roundToInt()
   Column(
     modifier = modifier
       .clip(RoundedCornerShape(16.dp))
-      .background(PorcelainBg.copy(alpha = 0.92f))
+      .background(cs.surfaceContainer.copy(alpha = 0.92f))
       .padding(horizontal = 10.dp, vertical = 12.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -181,7 +180,7 @@ fun VolumeSlider(
       text = getVolumeSliderText(volume, mpvVolume, boostVolume, pct, displayAsPercentage),
       style = MaterialTheme.typography.labelSmall,
       fontWeight = FontWeight.Bold,
-      color = PorcelainInk,
+      color = cs.onSurface,
     )
     VerticalSlider(
       if (displayAsPercentage) pct else volume,
@@ -197,7 +196,7 @@ fun VolumeSlider(
         else -> Icons.AutoMirrored.Default.VolumeUp
       },
       contentDescription = null,
-      tint = PorcelainBlue,
+      tint = cs.primary,
       modifier = Modifier.size(18.dp),
     )
   }

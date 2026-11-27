@@ -54,7 +54,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -68,13 +67,6 @@ import kotlinx.coroutines.delay
 import live.mehiz.mpvkt.ui.player.controls.LocalPlayerButtonsClickEvent
 import live.mehiz.mpvkt.ui.player.manager.DetectedSkipChapter
 import live.mehiz.mpvkt.ui.player.manager.UndoSkipInfo
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainBlueSoft
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainMuted
-import live.mehiz.mpvkt.ui.theme.PorcelainSurface
-import live.mehiz.mpvkt.ui.theme.PorcelainTrack
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -96,16 +88,17 @@ fun PorcelainPillButton(
   badge: String? = null,
   size: Dp = 38.dp,
 ) {
+  val cs = MaterialTheme.colorScheme
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val bgColor = when {
-    !enabled -> PorcelainSurface.copy(alpha = 0.45f)
-    active -> PorcelainBlue
-    else -> PorcelainSurface.copy(alpha = 0.94f)
+    !enabled -> cs.surfaceBright.copy(alpha = 0.45f)
+    active -> cs.primary
+    else -> cs.surfaceBright.copy(alpha = 0.94f)
   }
   val iconColor = when {
-    !enabled -> PorcelainMuted.copy(alpha = 0.5f)
-    active -> PorcelainSurface
-    else -> PorcelainInk
+    !enabled -> cs.onSurfaceVariant.copy(alpha = 0.5f)
+    active -> cs.onPrimary
+    else -> cs.onSurface
   }
 
   Box(
@@ -148,7 +141,7 @@ fun PorcelainPillButton(
           .align(Alignment.BottomEnd)
           .offset(x = 2.dp, y = 2.dp)
           .clip(RoundedCornerShape(6.dp))
-          .background(if (active) PorcelainSurface else PorcelainBlue)
+          .background(if (active) cs.onPrimary else cs.primary)
           .padding(horizontal = 4.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center,
       ) {
@@ -157,7 +150,7 @@ fun PorcelainPillButton(
           fontSize = 8.5.sp,
           lineHeight = 9.5.sp,
           fontWeight = FontWeight.Bold,
-          color = if (active) PorcelainBlue else PorcelainSurface,
+          color = if (active) cs.primary else cs.onPrimary,
           maxLines = 1,
         )
       }
@@ -167,6 +160,7 @@ fun PorcelainPillButton(
 
 @Composable
 fun PorcelainClockBatteryPill(modifier: Modifier = Modifier) {
+  val cs = MaterialTheme.colorScheme
   val context = LocalContext.current
   var timeText by remember { mutableStateOf("") }
   var batteryPct by remember { mutableIntStateOf(-1) }
@@ -204,7 +198,7 @@ fun PorcelainClockBatteryPill(modifier: Modifier = Modifier) {
   Row(
     modifier = modifier
       .clip(RoundedCornerShape(11.dp))
-      .background(PorcelainBg.copy(alpha = 0.90f))
+      .background(cs.surfaceContainer.copy(alpha = 0.90f))
       .padding(horizontal = 10.dp, vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -213,13 +207,13 @@ fun PorcelainClockBatteryPill(modifier: Modifier = Modifier) {
       text = timeText,
       style = MaterialTheme.typography.labelMedium,
       fontWeight = FontWeight.SemiBold,
-      color = PorcelainInk,
+      color = cs.onSurface,
     )
     if (batteryPct >= 0) {
       Text(
         text = "·",
         style = MaterialTheme.typography.labelMedium,
-        color = PorcelainMuted,
+        color = cs.onSurfaceVariant,
       )
       Icon(
         imageVector = when {
@@ -228,14 +222,14 @@ fun PorcelainClockBatteryPill(modifier: Modifier = Modifier) {
           else -> Icons.Filled.BatteryStd
         },
         contentDescription = null,
-        tint = if (isCharging) PorcelainBlue else PorcelainInk,
+        tint = if (isCharging) cs.primary else cs.onSurface,
         modifier = Modifier.size(14.dp),
       )
       Text(
         text = "$batteryPct%",
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
-        color = PorcelainInk,
+        color = cs.onSurface,
       )
     }
   }
@@ -308,11 +302,19 @@ fun PorcelainSpeedPopup(
   onReset: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val haptics = LocalHapticFeedback.current
   val isCustom = abs(speed - 1.0f) >= 0.005f
   val norm = speedToNorm(speed)
   var lastSnappedValue by remember { mutableStateOf<Float?>(null) }
+
+  val trackColor = cs.outlineVariant
+  val activeColor = cs.primary
+  val mutedColor = cs.onSurfaceVariant
+  val surfaceBrightColor = cs.surfaceBright
+  val primaryContainerColor = cs.primaryContainer
+  val shadowColor = cs.onSurface.copy(alpha = 0.14f)
 
   Surface(
     modifier = modifier
@@ -322,7 +324,7 @@ fun PorcelainSpeedPopup(
         indication = null,
         onClick = {},
       ),
-    color = PorcelainBg.copy(alpha = 0.96f),
+    color = cs.surfaceContainer.copy(alpha = 0.96f),
     shape = RoundedCornerShape(16.dp),
     shadowElevation = 8.dp,
   ) {
@@ -340,7 +342,7 @@ fun PorcelainSpeedPopup(
           text = "倍速",
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.Bold,
-          color = PorcelainInk,
+          color = cs.onSurface,
         )
 
         Row(
@@ -351,13 +353,13 @@ fun PorcelainSpeedPopup(
             text = formatSpeedReadout(speed),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
-            color = if (isCustom) PorcelainBlue else PorcelainInk,
+            color = if (isCustom) cs.primary else cs.onSurface,
           )
           Box(
             modifier = Modifier
               .clip(RoundedCornerShape(8.dp))
               .background(
-                if (isCustom) PorcelainSurface else PorcelainSurface.copy(alpha = 0.45f),
+                if (isCustom) cs.surfaceBright else cs.surfaceBright.copy(alpha = 0.45f),
               )
               .clickable(enabled = isCustom) {
                 clickEvent()
@@ -371,7 +373,7 @@ fun PorcelainSpeedPopup(
               text = "重置",
               style = MaterialTheme.typography.labelSmall,
               fontWeight = FontWeight.SemiBold,
-              color = if (isCustom) PorcelainInk else PorcelainMuted.copy(alpha = 0.5f),
+              color = if (isCustom) cs.onSurface else cs.onSurfaceVariant.copy(alpha = 0.5f),
             )
           }
         }
@@ -442,15 +444,15 @@ fun PorcelainSpeedPopup(
 
           // Base track
           drawRoundRect(
-            color = PorcelainTrack,
+            color = trackColor,
             topLeft = Offset(trAx, cy - trackH / 2f),
             size = Size(trW, trackH),
             cornerRadius = CornerRadius(trackH / 2f, trackH / 2f),
           )
-          // Active cerulean fill
+          // Active primary fill
           if (fillX > trAx + 1f) {
             drawRoundRect(
-              color = PorcelainBlue,
+              color = activeColor,
               topLeft = Offset(trAx, cy - trackH / 2f),
               size = Size(fillX - trAx, trackH),
               cornerRadius = CornerRadius(trackH / 2f, trackH / 2f),
@@ -466,18 +468,18 @@ fun PorcelainSpeedPopup(
             val passed = st <= norm + 0.005f
             if (sp.major) {
               drawCircle(
-                color = if (passed) PorcelainBlue else PorcelainMuted.copy(alpha = 0.55f),
+                color = if (passed) activeColor else mutedColor.copy(alpha = 0.55f),
                 radius = majorR + 1.2.dp.toPx(),
                 center = Offset(sx, cy),
               )
               drawCircle(
-                color = PorcelainSurface,
+                color = surfaceBrightColor,
                 radius = majorR - 0.3.dp.toPx(),
                 center = Offset(sx, cy),
               )
             } else {
               drawCircle(
-                color = if (passed) PorcelainBlueSoft else PorcelainSurface.copy(alpha = 0.90f),
+                color = if (passed) primaryContainerColor else surfaceBrightColor.copy(alpha = 0.90f),
                 radius = minorR,
                 center = Offset(sx, cy),
               )
@@ -486,17 +488,17 @@ fun PorcelainSpeedPopup(
 
           // Concentric smooth thumb handle
           drawCircle(
-            color = PorcelainInk.copy(alpha = 0.13f),
+            color = shadowColor,
             radius = thumbR + 1.5.dp.toPx(),
             center = Offset(fillX, cy + 1.dp.toPx()),
           )
           drawCircle(
-            color = PorcelainBlue,
+            color = activeColor,
             radius = thumbR,
             center = Offset(fillX, cy),
           )
           drawCircle(
-            color = PorcelainSurface,
+            color = surfaceBrightColor,
             radius = thumbR - 2.6.dp.toPx(),
             center = Offset(fillX, cy),
           )
@@ -514,7 +516,7 @@ fun PorcelainSpeedPopup(
             text = sp.label!!,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (matched) FontWeight.Bold else FontWeight.Normal,
-            color = if (matched) PorcelainBlue else PorcelainMuted,
+            color = if (matched) cs.primary else cs.onSurfaceVariant,
           )
         }
       }
@@ -531,6 +533,7 @@ fun ChapterSkipOverlay(
   onUndo: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   Column(
     modifier = modifier,
     horizontalAlignment = Alignment.End,
@@ -543,7 +546,7 @@ fun ChapterSkipOverlay(
     ) {
       activePrompt?.let { ch ->
         Surface(
-          color = PorcelainBg.copy(alpha = 0.94f),
+          color = cs.surfaceContainer.copy(alpha = 0.94f),
           shape = RoundedCornerShape(14.dp),
           shadowElevation = 6.dp,
         ) {
@@ -555,7 +558,7 @@ fun ChapterSkipOverlay(
             Row(
               modifier = Modifier
                 .clip(RoundedCornerShape(10.dp))
-                .background(PorcelainBlue)
+                .background(cs.primary)
                 .clickable(onClick = onSkip)
                 .padding(horizontal = 12.dp, vertical = 7.dp),
               verticalAlignment = Alignment.CenterVertically,
@@ -564,28 +567,28 @@ fun ChapterSkipOverlay(
               Icon(
                 imageVector = Icons.Filled.FastForward,
                 contentDescription = null,
-                tint = PorcelainSurface,
+                tint = cs.onPrimary,
                 modifier = Modifier.size(16.dp),
               )
               Text(
                 text = "跳过${ch.kind.label}",
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
-                color = PorcelainSurface,
+                color = cs.onPrimary,
               )
             }
             Box(
               modifier = Modifier
                 .size(30.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(PorcelainSurface)
+                .background(cs.surfaceBright)
                 .clickable(onClick = onDismiss),
               contentAlignment = Alignment.Center,
             ) {
               Icon(
                 imageVector = Icons.Filled.Close,
                 contentDescription = "忽略",
-                tint = PorcelainMuted,
+                tint = cs.onSurfaceVariant,
                 modifier = Modifier.size(16.dp),
               )
             }
@@ -601,7 +604,7 @@ fun ChapterSkipOverlay(
     ) {
       undoBanner?.let { undo ->
         Surface(
-          color = PorcelainBg.copy(alpha = 0.94f),
+          color = cs.surfaceContainer.copy(alpha = 0.94f),
           shape = RoundedCornerShape(14.dp),
           shadowElevation = 6.dp,
         ) {
@@ -613,12 +616,12 @@ fun ChapterSkipOverlay(
             Text(
               text = "已跳过${undo.label}",
               style = MaterialTheme.typography.labelMedium,
-              color = PorcelainInk,
+              color = cs.onSurface,
             )
             Box(
               modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(PorcelainBlue)
+                .background(cs.primary)
                 .clickable(onClick = onUndo)
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             ) {
@@ -626,7 +629,7 @@ fun ChapterSkipOverlay(
                 text = "撤销",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = PorcelainSurface,
+                color = cs.onPrimary,
               )
             }
           }

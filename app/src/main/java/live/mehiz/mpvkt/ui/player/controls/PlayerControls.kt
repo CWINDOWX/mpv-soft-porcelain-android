@@ -110,10 +110,6 @@ import live.mehiz.mpvkt.ui.player.controls.components.VolumeSlider
 import live.mehiz.mpvkt.ui.player.controls.components.formatSpeedBadge
 import live.mehiz.mpvkt.ui.player.controls.components.panels.SubColorType
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.toFixed
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
-import live.mehiz.mpvkt.ui.theme.PorcelainSurface
 import live.mehiz.mpvkt.ui.theme.playerRippleConfiguration
 import live.mehiz.mpvkt.ui.theme.spacing
 import kotlin.math.abs
@@ -220,10 +216,11 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
   )
   DoubleTapToSeekOvals(doubleTapSeekAmount, seekText, showDoubleTapOvals, showSeekIcon, showSeekTime, interactionSource)
 
+  val cs = MaterialTheme.colorScheme
   CompositionLocalProvider(
     LocalRippleConfiguration provides playerRippleConfiguration,
     LocalPlayerButtonsClickEvent provides { resetControls = !resetControls },
-    LocalContentColor provides PorcelainInk,
+    LocalContentColor provides cs.onSurface,
   ) {
     CompositionLocalProvider(
       LocalLayoutDirection provides LayoutDirection.Ltr,
@@ -410,7 +407,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                 Box(
                   modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .background(PorcelainBg.copy(alpha = 0.94f))
+                    .background(cs.surfaceContainer.copy(alpha = 0.94f))
                     .padding(horizontal = 18.dp, vertical = 10.dp),
                 ) {
                   Text(
@@ -421,7 +418,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                       Utils.prettyTime(gestureSeekAmount!!.first + gestureSeekAmount!!.second),
                     ),
                     style = MaterialTheme.typography.titleMedium,
-                    color = PorcelainInk,
+                    color = cs.onSurface,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                   )
@@ -433,12 +430,12 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                   modifier = Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(PorcelainBg.copy(alpha = 0.90f)),
+                    .background(cs.surfaceContainer.copy(alpha = 0.90f)),
                   contentAlignment = Alignment.Center,
                 ) {
                   CircularProgressIndicator(
                     modifier = Modifier.size(34.dp),
-                    color = PorcelainBlue,
+                    color = cs.primary,
                     strokeWidth = 3.5.dp,
                   )
                 }
@@ -449,14 +446,14 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                   modifier = Modifier
                     .size(62.dp)
                     .clip(CircleShape)
-                    .background(PorcelainBg.copy(alpha = 0.92f))
+                    .background(cs.surfaceContainer.copy(alpha = 0.92f))
                     .clickable(onClick = viewModel::pauseUnpause),
                   contentAlignment = Alignment.Center,
                 ) {
                   Icon(
                     imageVector = if (paused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
                     contentDescription = if (paused) "播放" else "暂停",
-                    tint = PorcelainInk,
+                    tint = cs.onSurface,
                     modifier = Modifier.size(34.dp),
                   )
                 }
@@ -603,7 +600,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
               modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
-                .background(PorcelainBg.copy(alpha = 0.86f))
+                .background(cs.surfaceContainer.copy(alpha = 0.88f))
                 .then(if (isCompact) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
               verticalAlignment = Alignment.CenterVertically,

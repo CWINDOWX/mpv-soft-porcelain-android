@@ -26,9 +26,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
 import live.mehiz.mpvkt.ui.player.controls.components.PorcelainPillButton
-import live.mehiz.mpvkt.ui.theme.PorcelainBg
-import live.mehiz.mpvkt.ui.theme.PorcelainBlue
-import live.mehiz.mpvkt.ui.theme.PorcelainInk
 
 @Composable
 fun TopLeftPlayerControls(
@@ -36,6 +33,7 @@ fun TopLeftPlayerControls(
   onBackClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val cs = MaterialTheme.colorScheme
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val parsed = remember(mediaTitle) { SmartTitleParser.parse(mediaTitle) }
   var showRawFilename by remember(mediaTitle) { mutableStateOf(false) }
@@ -55,7 +53,7 @@ fun TopLeftPlayerControls(
     Row(
       modifier = Modifier
         .clip(RoundedCornerShape(11.dp))
-        .background(PorcelainBg.copy(alpha = 0.90f))
+        .background(cs.surfaceContainer.copy(alpha = 0.90f))
         .clickable {
           clickEvent()
           showRawFilename = !showRawFilename
@@ -69,14 +67,14 @@ fun TopLeftPlayerControls(
           modifier = Modifier
             .size(7.dp)
             .clip(CircleShape)
-            .background(PorcelainBlue),
+            .background(cs.primary),
         )
       }
       Text(
         text = displayText,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        color = PorcelainInk,
+        color = cs.onSurface,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
       )

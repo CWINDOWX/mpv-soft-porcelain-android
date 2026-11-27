@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.R
 import live.mehiz.mpvkt.database.entities.CustomButtonEntity
@@ -109,6 +110,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
   private var voInUse = "gpu"
   private var isForeground = false
   private var isStopping = false
+  @Volatile private var autoPlayPending = false
 
   private var paused: Boolean
     get() = mpv.prop["pause"] ?: true
@@ -227,10 +229,15 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     loadIntentInternal(intent)
   }
 
+  fun cancelAutoPlay() {
+    autoPlayPending = false
+  }
+
   private fun loadIntentInternal(intent: Intent) {
     val path = getPlayableUri(intent) ?: return
     if (fileName.isNotBlank()) saveState()
     playIntent = intent
+    autoPlayPending = true
     playerManager.chapterSkip.resetForNewFile()
     playerManager.thumbnailer.sourceUri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
     if (hasSurface) mpv.command("loadfile", path) else pendingFile = path
@@ -289,8 +296,14 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     mpv.setPropertyString("vo", voInUse)
     savedVid?.let { mpv.setPropertyString("vid", it) }
     savedVid = null
-    pendingFile?.let { mpv.command("loadfile", it) }
+    val pending = pendingFile
     pendingFile = null
+    if (pending != null) {
+      mpv.command("loadfile", pending)
+    } else if (autoPlayPending && !isStopping) {
+      autoPlayPending = false
+      paused = false
+    }
   }
 
   fun resizeSurface(width: Int, height: Int) {
@@ -555,14 +568,34 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     if (title.isNullOrBlank() || title.isDigitsOnly()) mpv.setPropertyString("media-title", fileName)
     playerManager.shaders.applyCurrent()
     val name = fileName
-    ioScope.launch { loadVideoPlaybackState(name) }
+    val shouldAutoPlay = autoPlayPending
+    autoPlayPending = false
+    ioScope.launch {
+      try {
+        loadVideoPlaybackState(name)
+      } finally {
+        if (shouldAutoPlay) {
+          withContext(Dispatchers.Main.immediate) {
+            if (!isStopping) {
+              if (hasSurface || isForeground) {
+                paused = false
+              } else {
+                autoPlayPending = true
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   private fun setIntentExtras(extras: android.os.Bundle?) {
     if (extras == null) return
 
     extras.getString("title")?.let { mpv.setPropertyString("force-media-title", it) }
-    mpv.setPropertyInt("time-pos", extras.getInt("position", 0) / 1000)
+    if (extras.containsKey("position")) {
+      mpv.setPropertyInt("time-pos", extras.getInt("position", 0) / 1000)
+    }
 
     if (extras.containsKey("subs")) {
       val subList = Utils.getParcelableArray<Uri>(extras, "subs")
