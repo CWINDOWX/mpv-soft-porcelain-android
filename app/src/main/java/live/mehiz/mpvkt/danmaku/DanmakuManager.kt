@@ -244,7 +244,7 @@ class DanmakuManager(
 
       // 4. Fallback: search by parsed title + episode number
       val epNum = parsed.episodeNumber?.toDoubleOrNull()
-      val seasonNum = extractSeasonNumber(fileName)
+      val seasonNum = SmartTitleParser.extractSeason(fileName)
       if (parsed.animeName.isNotBlank() && epNum != null && gen == loadGeneration.get()) {
         val titleRes = api.matchByTitle(parsed.animeName, seasonNum, epNum)
         val matched = titleRes.getOrNull()
@@ -481,13 +481,5 @@ class DanmakuManager(
       }
       historyFile.writeText(json.encodeToString(trimmed))
     }
-  }
-
-  private fun extractSeasonNumber(fileName: String): Int? {
-    val m1 = Regex("""[._\s-]S(\d{1,2})[._\s-]*E\d""", RegexOption.IGNORE_CASE).find(fileName)
-    if (m1 != null) return m1.groupValues[1].toIntOrNull()
-    val m2 = Regex("""第\s*(\d{1,2})\s*[季部期]""").find(fileName)
-    if (m2 != null) return m2.groupValues[1].toIntOrNull()
-    return null
   }
 }

@@ -301,4 +301,12 @@ object SmartTitleParser {
     val cleaned = cleanTitle(base).ifBlank { base }
     return ParsedAnimeTitle(animeName = cleaned, episodeNumber = null, displayTitle = cleaned)
   }
+
+  fun extractSeason(fileName: String): Int? {
+    val m1 = Regex("""[._\s-]S(\d{1,2})[._\s-]*E\d""", RegexOption.IGNORE_CASE).find(fileName)
+    if (m1 != null) return m1.groupValues[1].toIntOrNull()
+    val m2 = Regex("""第\s*(\d{1,2})\s*[季部期]""").find(fileName)
+    if (m2 != null) return m2.groupValues[1].toIntOrNull()
+    return null
+  }
 }

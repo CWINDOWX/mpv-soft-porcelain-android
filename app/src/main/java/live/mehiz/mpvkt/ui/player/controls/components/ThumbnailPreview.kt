@@ -3,6 +3,7 @@ package live.mehiz.mpvkt.ui.player.controls.components
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -46,6 +47,9 @@ fun ThumbnailPreview(
     AndroidView(
       factory = { context ->
         TextureView(context).apply {
+          isClickable = false
+          isFocusable = false
+          visibility = if (visible && aspect != null) View.VISIBLE else View.INVISIBLE
           surfaceTextureListener = object : TextureView.SurfaceTextureListener {
             private var surface: Surface? = null
 
@@ -66,6 +70,10 @@ fun ThumbnailPreview(
             override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
           }
         }
+      },
+      update = { view ->
+        // Keep TextureView surface warm while invisible, and prevent hidden view from blocking touches
+        view.visibility = if (visible && aspect != null) View.VISIBLE else View.INVISIBLE
       },
       modifier = Modifier
         .offset(x = (center - PreviewWidth / 2).coerceIn(0.dp, maxWidth - PreviewWidth))

@@ -27,7 +27,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +40,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import `is`.xyz.mpv.Utils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import live.mehiz.mpvkt.App
+import live.mehiz.mpvkt.bangumi.BangumiLibrarySnapshot
 import live.mehiz.mpvkt.bangumi.BangumiLibraryStore
 import live.mehiz.mpvkt.preferences.ChapterSkipMode
 import live.mehiz.mpvkt.preferences.MobileShaderPreset
@@ -280,8 +287,13 @@ fun PlaylistSheet(
 ) {
   val cs = MaterialTheme.colorScheme
   val context = LocalContext.current
-  val bgmSnapshot = remember(playlist) {
-    BangumiLibraryStore.loadSnapshot(context, App.graph.json)
+  var bgmSnapshot by remember {
+    mutableStateOf(BangumiLibrarySnapshot(emptyMap(), emptyMap(), emptyMap()))
+  }
+  LaunchedEffect(playlist) {
+    bgmSnapshot = withContext(Dispatchers.IO) {
+      BangumiLibraryStore.loadSnapshot(context, App.graph.json)
+    }
   }
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(

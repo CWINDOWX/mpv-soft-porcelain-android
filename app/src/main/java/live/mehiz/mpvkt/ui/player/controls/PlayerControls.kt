@@ -774,7 +774,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
           // Floating OP / ED Skip & Bangumi 90s Sync Capsules (work even when main controls are hidden!)
           Box(
             modifier = Modifier
-              .zIndex(3f)
+              .zIndex(5f)
               .constrainAs(chapterSkipCard) {
                 if (controlsShown && !areControlsLocked) {
                   bottom.linkTo(bottomDock.top, 12.dp)
@@ -792,28 +792,44 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                 BangumiEndPromptOverlay(
                   visible = bgmShowEndPrompt && !bgmMarkedWatched,
                   match = bgmMatch,
-                  onSyncNow = { playerManager.bangumi.markCurrentEpisodeWatched(fromAuto = false) },
-                  onDismiss = playerManager.bangumi::dismissEndPrompt,
+                  onSyncNow = {
+                    resetControls = !resetControls
+                    playerManager.bangumi.markCurrentEpisodeWatched(fromAuto = false)
+                  },
+                  onDismiss = {
+                    resetControls = !resetControls
+                    playerManager.bangumi.dismissEndPrompt()
+                  },
                 )
                 ChapterSkipOverlay(
                   activePrompt = activeSkipPrompt,
                   undoBanner = undoSkipBanner,
-                  onSkip = playerManager.chapterSkip::skipActive,
-                  onDismiss = playerManager.chapterSkip::dismissActive,
-                  onUndo = playerManager.chapterSkip::undoLastSkip,
+                  onSkip = {
+                    resetControls = !resetControls
+                    playerManager.chapterSkip.skipActive()
+                  },
+                  onDismiss = {
+                    resetControls = !resetControls
+                    playerManager.chapterSkip.dismissActive()
+                  },
+                  onUndo = {
+                    resetControls = !resetControls
+                    playerManager.chapterSkip.undoLastSkip()
+                  },
                 )
               }
             }
           }
 
+          val showThumbPreview = seekPreviewPosition != null && !speedPopupOpen
           ThumbnailPreview(
             thumbnailer = thumbnailer,
-            visible = seekPreviewPosition != null && !speedPopupOpen,
+            visible = showThumbPreview,
             aspect = thumbnailAspect,
             position = seekPreviewPosition ?: position.toFloat(),
             duration = duration.toFloat(),
             modifier = Modifier
-              .zIndex(5f)
+              .zIndex(if (showThumbPreview) 6f else 0.5f)
               .constrainAs(thumbnailPreview) {
                 bottom.linkTo(if (controlsShown) bottomDock.top else seekbar.top, spacing.small)
                 start.linkTo(parent.start)

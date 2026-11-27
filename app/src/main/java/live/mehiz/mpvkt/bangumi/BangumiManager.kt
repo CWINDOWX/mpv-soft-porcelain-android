@@ -194,7 +194,7 @@ class BangumiManager(
     _searchResults.value = emptyList()
 
     val parsed = SmartTitleParser.parse(fileName)
-    val season = extractSeason(fileName)
+    val season = SmartTitleParser.extractSeason(fileName)
     val episode = parsed.episodeNumber?.toDoubleOrNull()
     val queryTitle = parsed.animeName.takeIf { it.length >= 2 }
       ?: folderName?.takeIf { it.isNotBlank() }
@@ -341,7 +341,7 @@ class BangumiManager(
     val gen = loadGeneration.get()
     val parsed = SmartTitleParser.parse(currentFileName)
     val episode = _match.value?.episodeNumber ?: parsed.episodeNumber?.toDoubleOrNull()
-    val season = _match.value?.season ?: extractSeason(currentFileName) ?: 1
+    val season = _match.value?.season ?: SmartTitleParser.extractSeason(currentFileName) ?: 1
 
     _busy.value = true
     _inlineError.value = null
@@ -539,13 +539,5 @@ class BangumiManager(
         if (stale != null) Result.success(stale) else Result.failure(err)
       },
     )
-  }
-
-  private fun extractSeason(fileName: String): Int? {
-    val m1 = Regex("""[._\s-]S(\d{1,2})[._\s-]*E\d""", RegexOption.IGNORE_CASE).find(fileName)
-    if (m1 != null) return m1.groupValues[1].toIntOrNull()
-    val m2 = Regex("""第\s*(\d{1,2})\s*[季部期]""").find(fileName)
-    if (m2 != null) return m2.groupValues[1].toIntOrNull()
-    return null
   }
 }
