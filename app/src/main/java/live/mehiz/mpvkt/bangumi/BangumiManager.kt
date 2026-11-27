@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import live.mehiz.mpvkt.preferences.BangumiMirrorPreset
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.ui.home.SmartTitleParser
@@ -74,11 +73,8 @@ class BangumiManager(
   private val _syncMode = MutableStateFlow(preferences.bangumiSyncMode.get())
   val syncMode = _syncMode.asStateFlow()
 
-  private val _mirror = MutableStateFlow(preferences.bangumiMirror.get())
-  val mirror = _mirror.asStateFlow()
-
-  private val _customApiUrl = MutableStateFlow(preferences.bangumiCustomApiUrl.get())
-  val customApiUrl = _customApiUrl.asStateFlow()
+  private val _apiServer = MutableStateFlow(preferences.resolveBangumiApiBaseUrl())
+  val apiServer = _apiServer.asStateFlow()
 
   private val _match = MutableStateFlow<BangumiMatchState?>(null)
   val match = _match.asStateFlow()
@@ -129,30 +125,25 @@ class BangumiManager(
     if (mode == BangumiSyncMode.Off) _showEndPrompt.value = false
   }
 
-  fun setMirror(preset: BangumiMirrorPreset) {
-    _mirror.value = preset
-    preferences.bangumiMirror.set(preset)
-    _inlineError.value = null
-    _inlineStatus.value = "已切换线路：${preferences.resolveBangumiApiBaseUrl()}"
-  }
-
-  fun setCustomApiUrl(rawUrl: String) {
-    val normalized = PorcelainPreferences.normalizeMirrorUrl(rawUrl).orEmpty()
-    _customApiUrl.value = normalized
-    preferences.bangumiCustomApiUrl.set(normalized)
-    if (normalized.isNotBlank()) {
-      _mirror.value = BangumiMirrorPreset.Custom
-      preferences.bangumiMirror.set(BangumiMirrorPreset.Custom)
-      _inlineError.value = null
-      _inlineStatus.value = "已保存自定义镜像：$normalized"
-    } else {
-      _inlineError.value = "请输入有效的镜像站地址（例如 https://api.bgm.lat）"
+  fun setApiServer(rawUrl: String) {
+    val normalized = PorcelainPreferences.normalizeMirrorUrl(rawUrl)
+    if (normalized == null) {
+      _inlineError.value = "请输入有效的 API / 镜像地址"
+      return
     }
+    _apiServer.value = normalized
+    preferences.bangumiApiServer.set(normalized)
+    _inlineError.value = null
+    _inlineStatus.value = "已保存接口地址：$normalized"
   }
 
-  fun activeApiBaseUrl(): String = preferences.resolveBangumiApiBaseUrl()
-
-  fun tokenPageUrl(): String = preferences.resolveBangumiTokenPageUrl()
+  fun resetApiServer() {
+    val def = PorcelainPreferences.DEFAULT_BANGUMI_API
+    _apiServer.value = def
+    preferences.bangumiApiServer.set(def)
+    _inlineError.value = null
+    _inlineStatus.value = "已恢复官方地址：$def"
+  }
 
   fun testMirrorConnection() {
     val target = preferences.resolveBangumiApiBaseUrl()

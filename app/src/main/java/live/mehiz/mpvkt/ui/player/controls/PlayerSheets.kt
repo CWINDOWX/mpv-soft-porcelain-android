@@ -164,8 +164,7 @@ fun PlayerSheets(
     Sheets.Bangumi -> {
       val user by bangumiManager.user.collectAsState()
       val syncMode by bangumiManager.syncMode.collectAsState()
-      val mirror by bangumiManager.mirror.collectAsState()
-      val customApiUrl by bangumiManager.customApiUrl.collectAsState()
+      val apiServer by bangumiManager.apiServer.collectAsState()
       val match by bangumiManager.match.collectAsState()
       val markedWatched by bangumiManager.markedWatched.collectAsState()
       val busy by bangumiManager.busy.collectAsState()
@@ -177,10 +176,7 @@ fun PlayerSheets(
       BangumiSyncSheet(
         user = user,
         syncMode = syncMode,
-        mirror = mirror,
-        customApiUrl = customApiUrl,
-        activeApiBaseUrl = bangumiManager.activeApiBaseUrl(),
-        tokenPageUrl = bangumiManager.tokenPageUrl(),
+        apiServer = apiServer,
         match = match,
         markedWatched = markedWatched,
         busy = busy,
@@ -192,8 +188,8 @@ fun PlayerSheets(
         onLoginToken = bangumiManager::loginWithToken,
         onLogout = bangumiManager::logout,
         onSyncModeChange = bangumiManager::setSyncMode,
-        onMirrorChange = bangumiManager::setMirror,
-        onSaveCustomApiUrl = bangumiManager::setCustomApiUrl,
+        onSaveApiServer = bangumiManager::setApiServer,
+        onResetApiServer = bangumiManager::resetApiServer,
         onTestConnection = bangumiManager::testMirrorConnection,
         onMarkWatched = { bangumiManager.markCurrentEpisodeWatched(fromAuto = false) },
         onSearchSubjects = bangumiManager::searchSubjects,

@@ -66,32 +66,6 @@ enum class BangumiSyncMode(val title: String, val shortLabel: String) {
   Off("仅手动", "手动"),
 }
 
-enum class BangumiMirrorPreset(
-  val title: String,
-  val shortLabel: String,
-  val apiBaseUrl: String,
-  val tokenPageUrl: String,
-) {
-  Official(
-    title = "官方主站",
-    shortLabel = "官方",
-    apiBaseUrl = "https://api.bgm.tv",
-    tokenPageUrl = "https://next.bgm.tv/demo/access-token",
-  ),
-  BgmLat(
-    title = "bgm.lat 镜像",
-    shortLabel = "bgm.lat",
-    apiBaseUrl = "https://api.bgm.lat",
-    tokenPageUrl = "https://next.bgm.lat/demo/access-token",
-  ),
-  Custom(
-    title = "自定义镜像",
-    shortLabel = "自定义",
-    apiBaseUrl = "",
-    tokenPageUrl = "https://next.bgm.tv/demo/access-token",
-  ),
-}
-
 @Inject
 @SingleIn(AppScope::class)
 class PorcelainPreferences(preferenceStore: PreferenceStore) {
@@ -129,19 +103,14 @@ class PorcelainPreferences(preferenceStore: PreferenceStore) {
   val bangumiUsername = preferenceStore.getString("porcelain_bgm_username", "")
   val bangumiNickname = preferenceStore.getString("porcelain_bgm_nickname", "")
   val bangumiSyncMode = preferenceStore.getEnum("porcelain_bgm_sync_mode", BangumiSyncMode.Prompt)
-  val bangumiMirror = preferenceStore.getEnum("porcelain_bgm_mirror", BangumiMirrorPreset.Official)
-  val bangumiCustomApiUrl = preferenceStore.getString("porcelain_bgm_custom_api", "")
+  val bangumiApiServer = preferenceStore.getString("porcelain_bgm_api_server", DEFAULT_BANGUMI_API)
 
-  fun resolveBangumiApiBaseUrl(): String = when (bangumiMirror.get()) {
-    BangumiMirrorPreset.Official -> BangumiMirrorPreset.Official.apiBaseUrl
-    BangumiMirrorPreset.BgmLat -> BangumiMirrorPreset.BgmLat.apiBaseUrl
-    BangumiMirrorPreset.Custom -> normalizeMirrorUrl(bangumiCustomApiUrl.get())
-      ?: BangumiMirrorPreset.Official.apiBaseUrl
-  }
-
-  fun resolveBangumiTokenPageUrl(): String = bangumiMirror.get().tokenPageUrl
+  fun resolveBangumiApiBaseUrl(): String =
+    normalizeMirrorUrl(bangumiApiServer.get()) ?: DEFAULT_BANGUMI_API
 
   companion object {
+    const val DEFAULT_BANGUMI_API = "https://api.bgm.tv"
+
     fun normalizeMirrorUrl(raw: String): String? {
       val trimmed = raw.trim().trimEnd('/')
       if (trimmed.isEmpty()) return null

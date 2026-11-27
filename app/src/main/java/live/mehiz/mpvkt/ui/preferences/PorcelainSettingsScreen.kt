@@ -46,7 +46,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import kotlinx.coroutines.launch
@@ -54,7 +53,6 @@ import kotlinx.serialization.Serializable
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.bangumi.BangumiApi
 import live.mehiz.mpvkt.danmaku.DanmakuChConvert
-import live.mehiz.mpvkt.preferences.BangumiMirrorPreset
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.preferences.PorcelainPreferences
 import live.mehiz.mpvkt.preferences.preference.collectAsState
@@ -81,18 +79,16 @@ object PorcelainSettingsScreen : Screen {
     val bgmUsername by prefs.bangumiUsername.collectAsState()
     val bgmNickname by prefs.bangumiNickname.collectAsState()
     val bgmSyncMode by prefs.bangumiSyncMode.collectAsState()
-    val bgmMirror by prefs.bangumiMirror.collectAsState()
-    val bgmCustomApiUrl by prefs.bangumiCustomApiUrl.collectAsState()
+    val bgmApiServer by prefs.bangumiApiServer.collectAsState()
 
     var serverInput by remember(dmApiServer) { mutableStateOf(dmApiServer) }
-    var bgmCustomInput by remember(bgmCustomApiUrl) { mutableStateOf(bgmCustomApiUrl) }
+    var bgmApiInput by remember(bgmApiServer) { mutableStateOf(bgmApiServer) }
     var tokenInput by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    val activeBgmApiUrl = remember(bgmMirror, bgmCustomApiUrl) { prefs.resolveBangumiApiBaseUrl() }
-    val activeTokenPageUrl = remember(bgmMirror) { prefs.resolveBangumiTokenPageUrl() }
+    val activeBgmApiUrl = remember(bgmApiServer) { prefs.resolveBangumiApiBaseUrl() }
 
     Scaffold(
       containerColor = cs.background,
@@ -155,39 +151,69 @@ object PorcelainSettingsScreen : Screen {
               }
             }
 
-            // Mirror selector
+            // Custom Bangumi API / Mirror address
+            OutlinedTextField(
+              value = bgmApiInput,
+              onValueChange = { bgmApiInput = it },
+              label = { Text("Bangumi API / 镜像地址") },
+              placeholder = { Text("https://api.bgm.tv") },
+              singleLine = true,
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(11.dp),
+            )
             Row(
               modifier = Modifier.fillMaxWidth(),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween,
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-              Column(modifier = Modifier.weight(1f)) {
-                Text(
-                  text = "接口线路 / 镜像站",
-                  style = MaterialTheme.typography.labelMedium,
-                  color = cs.onSurfaceVariant,
-                )
-                Text(
-                  text = activeBgmApiUrl,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = cs.primary,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis,
-                )
+              Button(
+                onClick = {
+                  val normalized = PorcelainPreferences.normalizeMirrorUrl(bgmApiInput)
+                  if (normalized != null) {
+                    bgmApiInput = normalized
+                    prefs.bangumiApiServer.set(normalized)
+                    errorMsg = null
+                    statusMsg = "已保存接口地址：$normalized"
+                  } else {
+                    errorMsg = "请输入有效的 API / 镜像地址"
+                  }
+                },
+                enabled = bgmApiInput.isNotBlank(),
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+              ) {
+                Text("保存地址")
               }
               OutlinedButton(
                 onClick = {
+                  val def = PorcelainPreferences.DEFAULT_BANGUMI_API
+                  bgmApiInput = def
+                  prefs.bangumiApiServer.set(def)
+                  errorMsg = null
+                  statusMsg = "已恢复官方地址：$def"
+                },
+                shape = RoundedCornerShape(10.dp),
+              ) {
+                Text("恢复官方")
+              }
+              OutlinedButton(
+                onClick = {
+                  val normalized = PorcelainPreferences.normalizeMirrorUrl(bgmApiInput)
+                  if (normalized != null && normalized != activeBgmApiUrl) {
+                    bgmApiInput = normalized
+                    prefs.bangumiApiServer.set(normalized)
+                  }
+                  val target = prefs.resolveBangumiApiBaseUrl()
                   busy = true
-                  statusMsg = "正在测试 $activeBgmApiUrl …"
+                  statusMsg = "正在测试 $target …"
                   errorMsg = null
                   scope.launch {
                     bgmApi.testConnection()
                       .onSuccess { ms ->
-                        statusMsg = "连接正常：$activeBgmApiUrl ($ms ms)"
+                        statusMsg = "连接正常：$target ($ms ms)"
                       }
                       .onFailure { e ->
                         statusMsg = null
-                        errorMsg = "连接失败（$activeBgmApiUrl）：${e.message}"
+                        errorMsg = "连接失败（$target）：${e.message}"
                       }
                     busy = false
                   }
@@ -195,80 +221,8 @@ object PorcelainSettingsScreen : Screen {
                 enabled = !busy,
                 shape = RoundedCornerShape(10.dp),
               ) {
-                Text("测试连通")
+                Text("测试")
               }
-            }
-
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-              BangumiMirrorPreset.entries.forEach { preset ->
-                val active = preset == bgmMirror
-                Box(
-                  modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (active) cs.primary else cs.surfaceContainerHigh)
-                    .clickable {
-                      prefs.bangumiMirror.set(preset)
-                      errorMsg = null
-                      statusMsg = "已切换为：${preset.title}"
-                    }
-                    .padding(vertical = 9.dp),
-                  contentAlignment = Alignment.Center,
-                ) {
-                  Text(
-                    text = preset.shortLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    color = if (active) cs.onPrimary else cs.onSurface,
-                  )
-                }
-              }
-            }
-
-            if (bgmMirror == BangumiMirrorPreset.Custom) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-              ) {
-                OutlinedTextField(
-                  value = bgmCustomInput,
-                  onValueChange = { bgmCustomInput = it },
-                  label = { Text("自定义 Bangumi API 地址") },
-                  placeholder = { Text("https://api.bgm.lat") },
-                  singleLine = true,
-                  modifier = Modifier.weight(1f),
-                  shape = RoundedCornerShape(11.dp),
-                )
-                Button(
-                  onClick = {
-                    val normalized = PorcelainPreferences.normalizeMirrorUrl(bgmCustomInput)
-                    if (normalized != null) {
-                      bgmCustomInput = normalized
-                      prefs.bangumiCustomApiUrl.set(normalized)
-                      errorMsg = null
-                      statusMsg = "已保存自定义镜像：$normalized"
-                    } else {
-                      errorMsg = "请输入有效的镜像站地址"
-                    }
-                  },
-                  enabled = bgmCustomInput.isNotBlank(),
-                  shape = RoundedCornerShape(10.dp),
-                ) {
-                  Text("保存")
-                }
-              }
-            }
-
-            if (bgmMirror != BangumiMirrorPreset.Official) {
-              Text(
-                text = "提示：无法直连官方 api.bgm.tv 时可切换到镜像站；同步登录凭据请仅使用信任的镜像或自建反代。",
-                style = MaterialTheme.typography.labelSmall,
-                color = cs.onSurfaceVariant,
-              )
             }
 
             HorizontalDivider(color = cs.outlineVariant.copy(alpha = 0.6f))
@@ -353,7 +307,7 @@ object PorcelainSettingsScreen : Screen {
                 OutlinedButton(
                   onClick = {
                     runCatching {
-                      context.startActivity(Intent(Intent.ACTION_VIEW, activeTokenPageUrl.toUri()))
+                      context.startActivity(Intent(Intent.ACTION_VIEW, BangumiApi.ACCESS_TOKEN_URL.toUri()))
                     }
                   },
                   shape = RoundedCornerShape(10.dp),

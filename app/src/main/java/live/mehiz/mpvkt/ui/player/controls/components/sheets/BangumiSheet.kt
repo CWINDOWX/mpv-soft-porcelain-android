@@ -56,10 +56,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import live.mehiz.mpvkt.bangumi.BangumiApi
 import live.mehiz.mpvkt.bangumi.BangumiMatchState
 import live.mehiz.mpvkt.bangumi.BangumiSubject
 import live.mehiz.mpvkt.bangumi.BangumiUser
-import live.mehiz.mpvkt.preferences.BangumiMirrorPreset
 import live.mehiz.mpvkt.preferences.BangumiSyncMode
 import live.mehiz.mpvkt.presentation.components.PlayerSheet
 
@@ -67,10 +67,7 @@ import live.mehiz.mpvkt.presentation.components.PlayerSheet
 fun BangumiSyncSheet(
   user: BangumiUser?,
   syncMode: BangumiSyncMode,
-  mirror: BangumiMirrorPreset,
-  customApiUrl: String,
-  activeApiBaseUrl: String,
-  tokenPageUrl: String,
+  apiServer: String,
   match: BangumiMatchState?,
   markedWatched: Boolean,
   busy: Boolean,
@@ -82,8 +79,8 @@ fun BangumiSyncSheet(
   onLoginToken: (String) -> Unit,
   onLogout: () -> Unit,
   onSyncModeChange: (BangumiSyncMode) -> Unit,
-  onMirrorChange: (BangumiMirrorPreset) -> Unit,
-  onSaveCustomApiUrl: (String) -> Unit,
+  onSaveApiServer: (String) -> Unit,
+  onResetApiServer: () -> Unit,
   onTestConnection: () -> Unit,
   onMarkWatched: () -> Unit,
   onSearchSubjects: (String) -> Unit,
@@ -95,7 +92,7 @@ fun BangumiSyncSheet(
   val context = LocalContext.current
   var tokenInput by remember { mutableStateOf("") }
   var searchQuery by remember(initialKeyword) { mutableStateOf(initialKeyword) }
-  var customUrlInput by remember(customApiUrl) { mutableStateOf(customApiUrl) }
+  var apiInput by remember(apiServer) { mutableStateOf(apiServer) }
 
   PlayerSheet(onDismissRequest = onDismissRequest, modifier = modifier) {
     Column(
@@ -191,7 +188,7 @@ fun BangumiSyncSheet(
         }
       }
 
-      // Mirror / API endpoint selector
+      // Custom API / Mirror endpoint input
       Column(
         modifier = Modifier
           .fillMaxWidth()
@@ -205,26 +202,22 @@ fun BangumiSyncSheet(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-          Column(modifier = Modifier.weight(1f)) {
-            Text(
-              text = "接口线路 / 镜像站",
-              style = MaterialTheme.typography.labelLarge,
-              fontWeight = FontWeight.SemiBold,
-              color = cs.onSurface,
-            )
-            Text(
-              text = activeApiBaseUrl,
-              style = MaterialTheme.typography.labelSmall,
-              color = cs.onSurfaceVariant,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis,
-            )
-          }
+          Text(
+            text = "API / 镜像地址",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = cs.onSurface,
+          )
           Box(
             modifier = Modifier
               .clip(RoundedCornerShape(8.dp))
               .background(cs.surfaceContainer)
-              .clickable(enabled = !busy, onClick = onTestConnection)
+              .clickable(enabled = !busy) {
+                if (apiInput.isNotBlank() && apiInput.trim() != apiServer) {
+                  onSaveApiServer(apiInput)
+                }
+                onTestConnection()
+              }
               .padding(horizontal = 10.dp, vertical = 5.dp),
           ) {
             Text(
@@ -236,52 +229,32 @@ fun BangumiSyncSheet(
           }
         }
 
+        OutlinedTextField(
+          value = apiInput,
+          onValueChange = { apiInput = it },
+          placeholder = { Text("https://api.bgm.tv（可填写镜像地址）") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(10.dp),
+        )
+
         Row(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-          BangumiMirrorPreset.entries.forEach { preset ->
-            val selected = preset == mirror
-            Box(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(9.dp))
-                .background(if (selected) cs.primary else cs.surfaceContainer)
-                .clickable { onMirrorChange(preset) }
-                .padding(vertical = 8.dp),
-              contentAlignment = Alignment.Center,
-            ) {
-              Text(
-                text = preset.shortLabel,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) cs.onPrimary else cs.onSurface,
-              )
-            }
-          }
-        }
-
-        if (mirror == BangumiMirrorPreset.Custom) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          Button(
+            onClick = { onSaveApiServer(apiInput) },
+            enabled = apiInput.isNotBlank(),
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
           ) {
-            OutlinedTextField(
-              value = customUrlInput,
-              onValueChange = { customUrlInput = it },
-              placeholder = { Text("https://api.bgm.lat") },
-              singleLine = true,
-              modifier = Modifier.weight(1f),
-              shape = RoundedCornerShape(10.dp),
-            )
-            Button(
-              onClick = { onSaveCustomApiUrl(customUrlInput) },
-              enabled = customUrlInput.isNotBlank(),
-              shape = RoundedCornerShape(10.dp),
-            ) {
-              Text("保存")
-            }
+            Text("保存地址")
+          }
+          OutlinedButton(
+            onClick = onResetApiServer,
+            shape = RoundedCornerShape(10.dp),
+          ) {
+            Text("恢复官方")
           }
         }
       }
@@ -334,7 +307,7 @@ fun BangumiSyncSheet(
             OutlinedButton(
               onClick = {
                 runCatching {
-                  context.startActivity(Intent(Intent.ACTION_VIEW, tokenPageUrl.toUri()))
+                  context.startActivity(Intent(Intent.ACTION_VIEW, BangumiApi.ACCESS_TOKEN_URL.toUri()))
                 }
               },
               shape = RoundedCornerShape(10.dp),
