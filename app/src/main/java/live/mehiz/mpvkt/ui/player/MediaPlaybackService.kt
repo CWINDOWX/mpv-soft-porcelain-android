@@ -425,7 +425,10 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
       (subtitlesPreferences.defaultSecondarySubDelay.get() / 1000.0).toString(),
     )
 
-    mpv.setOptionString("sub-font", subtitlesPreferences.font.get())
+    val savedSubFont = subtitlesPreferences.font.get().trim()
+    if (savedSubFont.isNotEmpty() && savedSubFont != "LXGW WenKai Mono Lite") {
+      mpv.setOptionString("sub-font", savedSubFont)
+    }
     if (subtitlesPreferences.overrideAssSubs.get()) {
       mpv.setOptionString("sub-ass-override", "force")
       mpv.setOptionString("sub-ass-justify", "yes")
@@ -476,20 +479,18 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
       val fontsDirFile = File("$cachePath/fonts")
       if (!fontsDirFile.exists()) fontsDirFile.mkdirs()
 
-      // Always extract bundled LXGW WenKai Mono Lite font atomically for crisp Chinese subtitles & fallback
-      val lxgwFile = File(fontsDirFile, "LXGWWenKaiMonoLite-Regular.ttf")
-      if (!lxgwFile.exists() || lxgwFile.length() == 0L) {
-        val tmpFile = File(fontsDirFile, "lxgw.ttf.tmp")
-        resources.openRawResource(R.font.lxgw_wenkai_mono_lite).use { input ->
-          tmpFile.outputStream().use { output -> input.copyTo(output) }
-        }
-        tmpFile.renameTo(lxgwFile)
-      }
+      // Clean up legacy bundled font if present from earlier versions
+      File(fontsDirFile, "LXGWWenKaiMonoLite-Regular.ttf").takeIf { it.exists() }?.delete()
+
       val subfontFile = File(fontsDirFile, "subfont.ttf")
       if (!subfontFile.exists() || subfontFile.length() == 0L) {
-        val tmpSub = File(fontsDirFile, "subfont.ttf.tmp")
-        lxgwFile.copyTo(tmpSub, overwrite = true)
-        tmpSub.renameTo(subfontFile)
+        runCatching {
+          val tmpSub = File(fontsDirFile, "subfont.ttf.tmp")
+          assets.open("subfont.ttf").use { input ->
+            tmpSub.outputStream().use { output -> input.copyTo(output) }
+          }
+          tmpSub.renameTo(subfontFile)
+        }
       }
 
       val userFontsUri = subtitlesPreferences.fontsFolder.get()

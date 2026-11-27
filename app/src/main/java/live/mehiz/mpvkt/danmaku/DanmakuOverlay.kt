@@ -17,11 +17,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.core.content.res.ResourcesCompat
-import live.mehiz.mpvkt.R
+import live.mehiz.mpvkt.App
+import live.mehiz.mpvkt.preferences.preference.collectAsState
 import live.mehiz.mpvkt.ui.player.manager.PlaybackState
+import live.mehiz.mpvkt.ui.theme.CustomFontManager
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
@@ -126,7 +126,8 @@ private class DanmakuCanvasEngine {
         (if (style.blockScroll) 1 else 0) * 16001L +
         (if (style.blockColor) 1 else 0) * 32003L +
         style.maxOnScreen * 65537L +
-        style.fontChoice.hashCode().toLong()
+        style.fontChoice.hashCode().toLong() +
+        typeface.hashCode().toLong() * 131071L
       )
 
     if (layoutKey != lastLayoutKey || abs(width - lastWidth) > 2f || abs(height - lastHeight) > 2f) {
@@ -380,18 +381,17 @@ fun DanmakuOverlay(
 
   if (!enabled || comments.isEmpty()) return
 
-  val context = LocalContext.current
   val density = LocalDensity.current.density
-  val lxgwTypeface = remember(context) {
-    runCatching { ResourcesCompat.getFont(context, R.font.lxgw_wenkai_mono_lite) }.getOrNull()
-      ?: Typeface.DEFAULT
+  val customFontPath by App.graph.porcelainPreferences.danmakuCustomFontPath.collectAsState()
+  val customTypeface = remember(customFontPath) {
+    CustomFontManager.loadTypeface(customFontPath)
   }
-  val activeTypeface = remember(style.fontChoice, lxgwTypeface) {
+  val activeTypeface = remember(style.fontChoice, customTypeface) {
     when (DanmakuFontOption.fromId(style.fontChoice)) {
-      DanmakuFontOption.Lxgw -> lxgwTypeface
-      DanmakuFontOption.Sans -> Typeface.SANS_SERIF
+      DanmakuFontOption.System -> Typeface.DEFAULT
       DanmakuFontOption.Serif -> Typeface.SERIF
       DanmakuFontOption.Mono -> Typeface.MONOSPACE
+      DanmakuFontOption.Custom -> customTypeface ?: Typeface.DEFAULT
     }
   }
 
@@ -410,8 +410,8 @@ fun DanmakuOverlay(
 
   var frameTick by remember { mutableLongStateOf(0L) }
 
-  // Immediately snap clock on seeks / pauses / file transitions
-  LaunchedEffect(coarsePos, paused, pausedForCache, comments) {
+  // Immediately snap clock on seeks / pauses / file transitions, and repaint when style or font changes while paused
+  LaunchedEffect(coarsePos, paused, pausedForCache, comments, style, activeTypeface) {
     val livePos = playback.currentTimePos()
     if (paused || pausedForCache || abs(livePos - clock.videoSec) > 0.6) {
       clock.videoSec = livePos

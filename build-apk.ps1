@@ -3,7 +3,7 @@ param(
     [string]$Variant = "preview"
 )
 
-if (-not $env:JAVA_HOME -and (Test-Path "E:\Android\jdk-21")) { $env:JAVA_HOME = "E:\Android\jdk-21" }
+if (Test-Path "E:\Android\jdk-21") { $env:JAVA_HOME = "E:\Android\jdk-21" }
 if (-not $env:ANDROID_HOME -and (Test-Path "E:\Android\Sdk")) { $env:ANDROID_HOME = "E:\Android\Sdk" }
 if (-not $env:ANDROID_SDK_ROOT -and $env:ANDROID_HOME) { $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME }
 if (-not $env:GRADLE_USER_HOME -and (Test-Path "E:\Android\.gradle")) { $env:GRADLE_USER_HOME = "E:\Android\.gradle" }

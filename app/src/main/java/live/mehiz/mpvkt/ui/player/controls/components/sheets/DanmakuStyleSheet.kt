@@ -1,6 +1,9 @@
 package live.mehiz.mpvkt.ui.player.controls.components.sheets
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -51,14 +54,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.danmaku.DANMAKU_PRESETS
 import live.mehiz.mpvkt.danmaku.DanmakuChConvert
 import live.mehiz.mpvkt.danmaku.DanmakuFontOption
 import live.mehiz.mpvkt.danmaku.DanmakuPreset
 import live.mehiz.mpvkt.danmaku.DanmakuStyleConfig
+import live.mehiz.mpvkt.preferences.preference.collectAsState
+import live.mehiz.mpvkt.ui.theme.CustomFontManager
+import live.mehiz.mpvkt.ui.theme.CustomFontSlot
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.floor
@@ -382,24 +390,69 @@ fun DanmakuStylePanelOverlay(
           HorizontalDivider(color = cs.outlineVariant.copy(alpha = 0.7f))
 
           // Font selection row
-          Text(
-            text = "字体",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = cs.onSurfaceVariant,
-          )
+          val context = LocalContext.current
+          val porcelainPrefs = App.graph.porcelainPreferences
+          val customFontPath by porcelainPrefs.danmakuCustomFontPath.collectAsState()
+          val customFontName by porcelainPrefs.danmakuCustomFontName.collectAsState()
+          val activeFontOption = DanmakuFontOption.fromId(style.fontChoice)
+          val customFontPicker = rememberLauncherForActivityResult(
+            ActivityResultContracts.OpenDocument(),
+          ) { uri ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            CustomFontManager.importFont(context, uri, CustomFontSlot.Danmaku)
+              .onSuccess { imported ->
+                porcelainPrefs.danmakuCustomFontPath.set(imported.path)
+                porcelainPrefs.danmakuCustomFontName.set(imported.displayName)
+                onUpdateStyle { it.copy(fontChoice = DanmakuFontOption.Custom.id) }
+                Toast.makeText(context, "已切换弹幕字体：${imported.displayName}", Toast.LENGTH_SHORT).show()
+              }
+              .onFailure { err ->
+                Toast.makeText(context, err.message ?: "字体加载失败", Toast.LENGTH_SHORT).show()
+              }
+          }
+
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+          ) {
+            Text(
+              text = "字体",
+              style = MaterialTheme.typography.labelMedium,
+              fontWeight = FontWeight.SemiBold,
+              color = cs.onSurfaceVariant,
+            )
+            if (activeFontOption == DanmakuFontOption.Custom && customFontPath.isNotBlank()) {
+              Text(
+                text = "${customFontName.ifBlank { "自定义" }} · 更换",
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.primary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                  .clip(RoundedCornerShape(6.dp))
+                  .clickable { customFontPicker.launch(arrayOf("font/*", "application/octet-stream", "*/*")) }
+                  .padding(horizontal = 6.dp, vertical = 2.dp),
+              )
+            }
+          }
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
           ) {
             DanmakuFontOption.entries.forEach { font ->
-              val selected = style.fontChoice == font.id
+              val selected = activeFontOption == font
               Box(
                 modifier = Modifier
                   .weight(1f)
                   .clip(RoundedCornerShape(9.dp))
                   .background(if (selected) cs.primary else cs.surfaceBright)
-                  .clickable { onUpdateStyle { it.copy(fontChoice = font.id) } }
+                  .clickable {
+                    if (font == DanmakuFontOption.Custom && customFontPath.isBlank()) {
+                      customFontPicker.launch(arrayOf("font/*", "application/octet-stream", "*/*"))
+                    } else {
+                      onUpdateStyle { it.copy(fontChoice = font.id) }
+                    }
+                  }
                   .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center,
               ) {

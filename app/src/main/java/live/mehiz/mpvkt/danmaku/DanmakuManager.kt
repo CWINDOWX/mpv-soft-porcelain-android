@@ -45,6 +45,16 @@ class DanmakuManager(
   private val _style = MutableStateFlow(loadStyleFromPrefs())
   val style = _style.asStateFlow()
 
+  init {
+    scope.launch {
+      preferences.danmakuFontChoice.changes().collect { choice ->
+        if (_style.value.fontChoice != choice) {
+          _style.update { it.copy(fontChoice = choice) }
+        }
+      }
+    }
+  }
+
   private val _comments = MutableStateFlow<List<DanmakuItem>>(emptyList())
   val comments = _comments.asStateFlow()
 

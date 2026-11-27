@@ -13,4 +13,6 @@ import live.mehiz.mpvkt.ui.theme.DarkMode
 class AppearancePreferences(preferenceStore: PreferenceStore) {
   val darkMode = preferenceStore.getEnum("dark_mode", DarkMode.Light)
   val materialYou = preferenceStore.getBoolean("material_you", false)
+  val customFontPath = preferenceStore.getString("appearance_custom_font_path", "")
+  val customFontName = preferenceStore.getString("appearance_custom_font_name", "")
 }

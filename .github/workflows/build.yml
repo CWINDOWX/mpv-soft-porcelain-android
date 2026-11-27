@@ -2,10 +2,7 @@ name: Build
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
-      - feat/soft-porcelain-android
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

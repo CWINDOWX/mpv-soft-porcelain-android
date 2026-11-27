@@ -26,8 +26,8 @@ android {
     applicationId = "com.porcelain.mpv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 4
-    versionName = "0.2.1"
+    versionCode = 5
+    versionName = "0.2.2"
 
     vectorDrawables {
       useSupportLibrary = true
@@ -79,7 +79,7 @@ android {
   buildTypes {
     named("release") {
       isMinifyEnabled = true
-      isShrinkResources = false
+      isShrinkResources = true
       proguardFiles(
         getDefaultProguardFile("proguard-android-optimize.txt"),
         "proguard-rules.pro",

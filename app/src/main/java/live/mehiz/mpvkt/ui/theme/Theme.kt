@@ -14,6 +14,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import live.mehiz.mpvkt.App
 import live.mehiz.mpvkt.R
@@ -101,6 +102,8 @@ fun MpvKtTheme(content: @Composable () -> Unit) {
   val darkMode by preferences.darkMode.collectAsState()
   val darkTheme = isSystemInDarkTheme()
   val dynamicColor by preferences.materialYou.collectAsState()
+  val customFontPath by preferences.customFontPath.collectAsState()
+  val typography = remember(customFontPath) { buildPorcelainTypography(customFontPath) }
   val context = LocalContext.current
 
   val colorScheme = when {
@@ -124,7 +127,7 @@ fun MpvKtTheme(content: @Composable () -> Unit) {
   ) {
     MaterialTheme(
       colorScheme = colorScheme,
-      typography = PorcelainTypography,
+      typography = typography,
       content = content,
     )
   }

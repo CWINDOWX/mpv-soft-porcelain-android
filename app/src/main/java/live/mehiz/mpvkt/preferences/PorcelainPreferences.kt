@@ -96,7 +96,9 @@ class PorcelainPreferences(preferenceStore: PreferenceStore) {
   val danmakuBlockColor = preferenceStore.getBoolean("porcelain_dm_block_color", false)
   val danmakuMergeDuplicates = preferenceStore.getBoolean("porcelain_dm_merge_dup", true)
   val danmakuChConvert = preferenceStore.getInt("porcelain_dm_ch_convert", 1)
-  val danmakuFontChoice = preferenceStore.getString("porcelain_dm_font", "lxgw")
+  val danmakuFontChoice = preferenceStore.getString("porcelain_dm_font", "system")
+  val danmakuCustomFontPath = preferenceStore.getString("porcelain_dm_custom_font_path", "")
+  val danmakuCustomFontName = preferenceStore.getString("porcelain_dm_custom_font_name", "")
 
   // M2: Bangumi progress sync
   val bangumiAccessToken = preferenceStore.getString("porcelain_bgm_token", "")

@@ -178,10 +178,6 @@ object AboutScreen : Screen {
             title = { Text(text = stringResource(id = R.string.pref_about_oss_libraries)) },
             onClick = { backstack.add(LibrariesScreen) },
           )
-          Preference(
-            title = { Text(text = stringResource(id = R.string.pref_about_privacy_policy)) },
-            onClick = { openUrl(context.getString(R.string.privacy_policy_url)) },
-          )
         }
         Row(
           Modifier.fillMaxWidth(),

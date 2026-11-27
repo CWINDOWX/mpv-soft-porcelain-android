@@ -20,14 +20,14 @@ data class DanmakuItem(
 }
 
 enum class DanmakuFontOption(val id: String, val label: String) {
-  Lxgw("lxgw", "霞鹜文楷"),
-  Sans("sans", "无衬线"),
+  System("system", "系统默认"),
   Serif("serif", "衬线体"),
   Mono("mono", "等宽体"),
+  Custom("custom", "自定义"),
   ;
 
   companion object {
-    fun fromId(id: String): DanmakuFontOption = entries.firstOrNull { it.id == id } ?: Lxgw
+    fun fromId(id: String): DanmakuFontOption = entries.firstOrNull { it.id == id } ?: System
   }
 }
 
@@ -57,7 +57,7 @@ data class DanmakuStyleConfig(
   val blockColor: Boolean = false,
   val mergeDuplicates: Boolean = true,
   val chConvert: Int = 1,
-  val fontChoice: String = "lxgw",
+  val fontChoice: String = "system",
 )
 
 data class DanmakuPreset(
