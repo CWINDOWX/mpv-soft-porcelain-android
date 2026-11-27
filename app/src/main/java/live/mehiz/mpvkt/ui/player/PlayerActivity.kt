@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import live.mehiz.mpvkt.App
+import live.mehiz.mpvkt.danmaku.DanmakuOverlay
 import live.mehiz.mpvkt.ui.player.controls.PlayerControls
 import live.mehiz.mpvkt.ui.theme.MpvKtTheme
 
@@ -108,6 +109,10 @@ class PlayerActivity : AppCompatActivity() {
             modifier = Modifier.onGloballyPositioned {
               pipRect = it.boundsInWindow().toAndroidRect()
             },
+          )
+          DanmakuOverlay(
+            danmakuManager = service.playerManager.danmaku,
+            playback = service.playerManager.playback,
           )
           PlayerControls(
             viewModel = viewModel,

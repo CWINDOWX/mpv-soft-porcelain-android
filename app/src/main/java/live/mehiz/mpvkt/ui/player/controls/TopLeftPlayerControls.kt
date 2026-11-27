@@ -32,12 +32,17 @@ fun TopLeftPlayerControls(
   mediaTitle: String,
   onBackClick: () -> Unit,
   modifier: Modifier = Modifier,
+  richTitle: String? = null,
 ) {
   val cs = MaterialTheme.colorScheme
   val clickEvent = LocalPlayerButtonsClickEvent.current
   val parsed = remember(mediaTitle) { SmartTitleParser.parse(mediaTitle) }
   var showRawFilename by remember(mediaTitle) { mutableStateOf(false) }
-  val displayText = if (showRawFilename) mediaTitle else parsed.displayTitle
+  val displayText = if (showRawFilename) {
+    mediaTitle
+  } else {
+    richTitle?.takeIf { it.isNotBlank() } ?: parsed.displayTitle
+  }
 
   Row(
     modifier = modifier,

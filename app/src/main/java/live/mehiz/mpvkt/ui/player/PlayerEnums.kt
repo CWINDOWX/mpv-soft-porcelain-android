@@ -63,6 +63,8 @@ enum class Sheets {
   ShaderPresets,
   ChapterSkip,
   Playlist,
+  Danmaku,
+  Bangumi,
   SubtitleTracks,
   AudioTracks,
   Chapters,
@@ -72,6 +74,7 @@ enum class Sheets {
 
 enum class Panels {
   None,
+  DanmakuStyle,
   SubtitleSettings,
   SubtitleDelay,
   AudioDelay,

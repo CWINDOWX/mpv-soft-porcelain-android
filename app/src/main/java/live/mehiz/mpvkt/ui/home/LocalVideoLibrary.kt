@@ -39,7 +39,10 @@ data class LocalVideoFolder(
 object LocalVideoLibrary {
   const val EXTRA_PLAYLIST_URIS = "com.porcelain.mpv.extra.PLAYLIST_URIS"
   const val EXTRA_PLAYLIST_NAMES = "com.porcelain.mpv.extra.PLAYLIST_NAMES"
+  const val EXTRA_PLAYLIST_PATHS = "com.porcelain.mpv.extra.PLAYLIST_PATHS"
   const val EXTRA_PLAYLIST_INDEX = "com.porcelain.mpv.extra.PLAYLIST_INDEX"
+  const val EXTRA_FOLDER_KEY = "com.porcelain.mpv.extra.FOLDER_KEY"
+  const val EXTRA_FOLDER_NAME = "com.porcelain.mpv.extra.FOLDER_NAME"
 
   suspend fun scanFolders(context: Context): List<LocalVideoFolder> = withContext(Dispatchers.IO) {
     val videos = queryAllVideos(context)
@@ -158,7 +161,10 @@ object LocalVideoLibrary {
       setClass(context, PlayerActivity::class.java)
       putStringArrayListExtra(EXTRA_PLAYLIST_URIS, ArrayList(videos.map { it.uri }))
       putStringArrayListExtra(EXTRA_PLAYLIST_NAMES, ArrayList(videos.map { it.displayName }))
+      putStringArrayListExtra(EXTRA_PLAYLIST_PATHS, ArrayList(videos.map { it.filePath.orEmpty() }))
       putExtra(EXTRA_PLAYLIST_INDEX, idx)
+      putExtra(EXTRA_FOLDER_KEY, item.folderId)
+      putExtra(EXTRA_FOLDER_NAME, item.folderName)
       // Auto-attach sibling external subtitles if accessible on filesystem
       val subs = findSiblingSubtitles(item.filePath)
       if (subs.isNotEmpty()) {

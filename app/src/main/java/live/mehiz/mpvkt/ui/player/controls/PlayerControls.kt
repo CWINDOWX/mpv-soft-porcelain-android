@@ -21,6 +21,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,11 +35,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Pause
@@ -109,6 +113,8 @@ import live.mehiz.mpvkt.ui.player.controls.components.ThumbnailPreview
 import live.mehiz.mpvkt.ui.player.controls.components.VolumeSlider
 import live.mehiz.mpvkt.ui.player.controls.components.formatSpeedBadge
 import live.mehiz.mpvkt.ui.player.controls.components.panels.SubColorType
+import live.mehiz.mpvkt.ui.player.controls.components.sheets.BangumiEndPromptOverlay
+import live.mehiz.mpvkt.ui.player.controls.components.sheets.DanmakuStylePanelOverlay
 import live.mehiz.mpvkt.ui.player.controls.components.sheets.toFixed
 import live.mehiz.mpvkt.ui.theme.playerRippleConfiguration
 import live.mehiz.mpvkt.ui.theme.spacing
@@ -161,6 +167,22 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
   val skipMode by playerManager.chapterSkip.mode.collectAsState()
   val activeSkipPrompt by playerManager.chapterSkip.activePrompt.collectAsState()
   val undoSkipBanner by playerManager.chapterSkip.undoBanner.collectAsState()
+  val dmEnabled by playerManager.danmaku.enabled.collectAsState()
+  val dmSource by playerManager.danmaku.sourceInfo.collectAsState()
+  val dmStyle by playerManager.danmaku.style.collectAsState()
+  val bgmMatch by playerManager.bangumi.match.collectAsState()
+  val bgmMarkedWatched by playerManager.bangumi.markedWatched.collectAsState()
+  val bgmShowEndPrompt by playerManager.bangumi.showEndPrompt.collectAsState()
+  val panelShown by viewModel.panelShown.collectAsState()
+
+  LaunchedEffect(playerManager) {
+    playerManager.danmaku.onToast = { msg ->
+      viewModel.playerUpdate.update { PlayerUpdates.ShowText(msg) }
+    }
+    playerManager.bangumi.onToast = { msg ->
+      viewModel.playerUpdate.update { PlayerUpdates.ShowText(msg) }
+    }
+  }
 
   val onOpenSheet: (Sheets) -> Unit = {
     speedPopupOpen = false
@@ -484,6 +506,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
           ) {
             TopLeftPlayerControls(
               mediaTitle = mediaTitle,
+              richTitle = bgmMatch?.richTopBarTitle,
               onBackClick = onBackPress,
             )
           }
@@ -590,7 +613,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                 width = Dimension.fillToConstraints
               },
           ) {
-            val isCompact = LocalConfiguration.current.screenWidthDp < 540
+            val isCompact = LocalConfiguration.current.screenWidthDp < 640
             val btnSize = if (isCompact) 34.dp else 38.dp
             val btnGap = if (isCompact) 4.dp else 6.dp
             val isCustomSpeed = abs(playbackSpeed - 1.0f) >= 0.005f
@@ -648,7 +671,31 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                 Spacer(modifier = Modifier.weight(1f))
               }
 
-              // Right: Standalone Speed Slider Button + Mobile Shaders + Subtitles + Audio + Chapters + Aspect
+              // Right: Danmaku + Bangumi + Standalone Speed Slider + Mobile Shaders + Subtitles + Audio + Chapters + Aspect
+              val dmBadge = when {
+                !dmEnabled -> null
+                dmSource != null && dmSource!!.totalCount >= 1000 ->
+                  String.format(java.util.Locale.US, "%.1fk", dmSource!!.totalCount / 1000f)
+                dmSource != null && dmSource!!.totalCount > 0 -> dmSource!!.totalCount.toString()
+                else -> "弹"
+              }
+              PorcelainPillButton(
+                icon = Icons.AutoMirrored.Filled.Comment,
+                contentDescription = "弹幕",
+                active = dmEnabled && (dmSource != null || panelShown == Panels.DanmakuStyle),
+                badge = dmBadge,
+                onClick = { onOpenSheet(Sheets.Danmaku) },
+                onLongClick = { playerManager.danmaku.toggleEnabled(showToast = true) },
+                size = btnSize,
+              )
+              PorcelainPillButton(
+                icon = if (bgmMarkedWatched) Icons.Filled.CloudDone else Icons.Filled.CloudSync,
+                contentDescription = "Bangumi 同步",
+                active = bgmMarkedWatched || bgmMatch != null,
+                badge = if (bgmMarkedWatched) "已看" else null,
+                onClick = { onOpenSheet(Sheets.Bangumi) },
+                size = btnSize,
+              )
               PorcelainPillButton(
                 icon = Icons.Filled.Speed,
                 contentDescription = "倍速",
@@ -724,7 +771,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
             )
           }
 
-          // Floating OP / ED Skip Capsule (works even when main controls are hidden!)
+          // Floating OP / ED Skip & Bangumi 90s Sync Capsules (work even when main controls are hidden!)
           Box(
             modifier = Modifier
               .zIndex(3f)
@@ -737,14 +784,25 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
                 end.linkTo(parent.end, 4.dp)
               },
           ) {
-            if (!speedPopupOpen && !areControlsLocked) {
-              ChapterSkipOverlay(
-                activePrompt = activeSkipPrompt,
-                undoBanner = undoSkipBanner,
-                onSkip = playerManager.chapterSkip::skipActive,
-                onDismiss = playerManager.chapterSkip::dismissActive,
-                onUndo = playerManager.chapterSkip::undoLastSkip,
-              )
+            if (!speedPopupOpen && !areControlsLocked && panelShown != Panels.DanmakuStyle) {
+              Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+              ) {
+                BangumiEndPromptOverlay(
+                  visible = bgmShowEndPrompt && !bgmMarkedWatched,
+                  match = bgmMatch,
+                  onSyncNow = { playerManager.bangumi.markCurrentEpisodeWatched(fromAuto = false) },
+                  onDismiss = playerManager.bangumi::dismissEndPrompt,
+                )
+                ChapterSkipOverlay(
+                  activePrompt = activeSkipPrompt,
+                  undoBanner = undoSkipBanner,
+                  onSkip = playerManager.chapterSkip::skipActive,
+                  onDismiss = playerManager.chapterSkip::dismissActive,
+                  onUndo = playerManager.chapterSkip::undoLastSkip,
+                )
+              }
             }
           }
 
@@ -768,6 +826,17 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
     }
     PlayerSheetsHost(viewModel, chapters, currentChapter, decoder, playbackSpeed, onOpenSheet, onOpenPanel)
     PlayerPanelsHost(viewModel, onOpenPanel)
+    if (panelShown == Panels.DanmakuStyle) {
+      DanmakuStylePanelOverlay(
+        enabled = dmEnabled,
+        style = dmStyle,
+        onToggleEnabled = { playerManager.danmaku.setEnabled(it, showToast = false) },
+        onUpdateStyle = playerManager.danmaku::updateStyle,
+        onApplyPreset = playerManager.danmaku::applyPreset,
+        onResetStyle = playerManager.danmaku::resetStyle,
+        onDismissRequest = { onOpenPanel(Panels.None) },
+      )
+    }
   }
 }
 
@@ -848,6 +917,10 @@ private fun PlayerSheetsHost(
     // Playlist sheet
     playlist = playlist,
     onSelectPlaylistIndex = playerManager::playPlaylistIndex,
+    // Danmaku & Bangumi managers
+    danmakuManager = playerManager.danmaku,
+    bangumiManager = playerManager.bangumi,
+    mediaTitle = playerManager.playback.mediaTitle.collectAsState().value,
     // More sheet state
     backgroundPlayback = backgroundPlayback,
     statisticsPage = statisticsPage,

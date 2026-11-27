@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Audiotrack
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Gesture
 import androidx.compose.material.icons.outlined.Info
@@ -55,6 +56,13 @@ object PreferencesScreen : Screen {
             .fillMaxSize()
             .padding(padding),
         ) {
+          preference(
+            key = "porcelain_anime",
+            title = { Text(text = "弹幕与 Bangumi") },
+            summary = { Text(text = "Bangumi 账号同步、弹幕自动匹配与中继地址") },
+            icon = { Icon(Icons.Outlined.AutoAwesome, null) },
+            onClick = { backstack.add(PorcelainSettingsScreen) },
+          )
           preference(
             key = "appearance",
             title = { Text(text = stringResource(id = R.string.pref_appearance_title)) },

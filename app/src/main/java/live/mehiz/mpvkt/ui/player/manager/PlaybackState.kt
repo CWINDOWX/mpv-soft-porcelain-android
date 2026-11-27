@@ -36,6 +36,7 @@ class PlaybackState(
   val paused: StateFlow<Boolean> = mpv.propFlow("pause", true)
   val pausedForCache: StateFlow<Boolean> = mpv.propFlow("paused-for-cache", false)
   val position: StateFlow<Int> = mpv.propFlow("time-pos", 0)
+  val precisePosition: StateFlow<Double> = mpv.propFlow("time-pos", 0.0)
   val duration: StateFlow<Int> = mpv.propFlow("duration", 0)
   val speed: StateFlow<Float> = mpv.propFlow("speed", preferences.defaultSpeed.get())
   val readAhead: StateFlow<Float> = mpv.propFlow("demuxer-cache-duration", 0f)

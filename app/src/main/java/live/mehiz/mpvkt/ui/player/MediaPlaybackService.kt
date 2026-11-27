@@ -214,17 +214,23 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
   fun play(intent: Intent) {
     val playlistUris = intent.getStringArrayListExtra(LocalVideoLibrary.EXTRA_PLAYLIST_URIS).orEmpty()
     val playlistNames = intent.getStringArrayListExtra(LocalVideoLibrary.EXTRA_PLAYLIST_NAMES).orEmpty()
+    val playlistPaths = intent.getStringArrayListExtra(LocalVideoLibrary.EXTRA_PLAYLIST_PATHS).orEmpty()
+    val folderKey = intent.getStringExtra(LocalVideoLibrary.EXTRA_FOLDER_KEY)
+    val folderName = intent.getStringExtra(LocalVideoLibrary.EXTRA_FOLDER_NAME)
     val playlistIdx = intent.getIntExtra(LocalVideoLibrary.EXTRA_PLAYLIST_INDEX, -1)
-    if (playlistUris.size > 1 && playlistIdx in playlistUris.indices) {
+    if (playlistUris.isNotEmpty() && playlistIdx in playlistUris.indices) {
       playerManager.updatePlaylist(
         PlaylistUiState(
           uris = playlistUris,
           names = if (playlistNames.size == playlistUris.size) playlistNames else playlistUris.map { it.substringAfterLast('/') },
+          paths = if (playlistPaths.size == playlistUris.size) playlistPaths else List(playlistUris.size) { "" },
+          folderKey = folderKey,
+          folderName = folderName,
           currentIndex = playlistIdx,
         ),
       )
     } else {
-      playerManager.updatePlaylist(PlaylistUiState())
+      playerManager.updatePlaylist(PlaylistUiState(folderKey = folderKey, folderName = folderName))
     }
     loadIntentInternal(intent)
   }
@@ -238,7 +244,7 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     if (fileName.isNotBlank()) saveState()
     playIntent = intent
     autoPlayPending = true
-    playerManager.chapterSkip.resetForNewFile()
+    playerManager.resetForNewFile()
     playerManager.thumbnailer.sourceUri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
     if (hasSurface) mpv.command("loadfile", path) else pendingFile = path
     requestAudioFocus()
@@ -253,6 +259,8 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     playerManager.updatePlaylist(st.copy(currentIndex = index))
     val nextIntent = Intent(Intent.ACTION_VIEW, uriStr.toUri()).apply {
       if (!name.isNullOrBlank()) putExtra("title", name)
+      if (!st.folderKey.isNullOrBlank()) putExtra(LocalVideoLibrary.EXTRA_FOLDER_KEY, st.folderKey)
+      if (!st.folderName.isNullOrBlank()) putExtra(LocalVideoLibrary.EXTRA_FOLDER_NAME, st.folderName)
     }
     loadIntentInternal(nextIntent)
   }
@@ -566,7 +574,25 @@ class MediaPlaybackService : MediaBrowserServiceCompat() {
     setIntentExtras(intent.extras)
     val title = mpv.getPropertyString("media-title")
     if (title.isNullOrBlank() || title.isDigitsOnly()) mpv.setPropertyString("media-title", fileName)
-    playerManager.shaders.applyCurrent()
+
+    val pl = playerManager.playlist.value
+    val activePath = pl.paths.getOrNull(pl.currentIndex)?.takeIf { it.isNotBlank() }
+      ?: intent.data?.takeIf { it.scheme == "file" }?.path
+    val folderKey = pl.folderKey
+      ?: intent.getStringExtra(LocalVideoLibrary.EXTRA_FOLDER_KEY)
+      ?: activePath?.let { File(it).parent }
+    val folderName = pl.folderName
+      ?: intent.getStringExtra(LocalVideoLibrary.EXTRA_FOLDER_NAME)
+      ?: activePath?.let { File(it).parentFile?.name }
+    val mediaUri = intent.data ?: intent.getParcelableExtra(Intent.EXTRA_STREAM)
+    playerManager.onMediaLoaded(
+      uri = mediaUri,
+      fileName = fileName,
+      folderKey = folderKey,
+      folderName = folderName,
+      filePath = activePath,
+    )
+
     val name = fileName
     val shouldAutoPlay = autoPlayPending
     autoPlayPending = false

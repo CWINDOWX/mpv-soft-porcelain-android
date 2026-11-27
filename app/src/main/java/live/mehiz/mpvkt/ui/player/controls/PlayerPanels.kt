@@ -98,7 +98,9 @@ fun PlayerPanels(
     modifier = modifier,
   ) { currentPanel ->
     when (currentPanel) {
-      Panels.None -> {
+      Panels.None,
+      Panels.DanmakuStyle,
+      -> {
         Box(Modifier.fillMaxHeight())
       }
 
