@@ -140,7 +140,6 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
   val pausedForCache by playback.pausedForCache.collectAsState()
   val paused by playback.paused.collectAsState()
   val duration by playback.duration.collectAsState()
-  val position by playback.position.collectAsState()
   val playbackSpeed by playback.speed.collectAsState()
   val gestureSeekAmount by viewModel.gestureSeekAmount.collectAsState()
   val doubleTapSeekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -573,6 +572,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
             },
           ) {
             val invertDuration by playerPreferences.invertDuration.collectAsState()
+            val position by playback.position.collectAsState()
             val readAhead by playback.readAhead.collectAsState()
             val preciseSeeking by playerPreferences.preciseSeeking.collectAsState()
             SeekbarWithTimers(
@@ -826,7 +826,7 @@ fun PlayerControls(viewModel: PlayerViewModel, onBackPress: () -> Unit, modifier
             thumbnailer = thumbnailer,
             visible = showThumbPreview,
             aspect = thumbnailAspect,
-            position = seekPreviewPosition ?: position.toFloat(),
+            position = seekPreviewPosition ?: 0f,
             duration = duration.toFloat(),
             modifier = Modifier
               .zIndex(if (showThumbPreview) 6f else 0.5f)

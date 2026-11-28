@@ -76,6 +76,7 @@ object PorcelainHttpClient {
 
       val statusCode = conn.responseCode
       val rawStream = if (statusCode in 200..399) conn.inputStream else (conn.errorStream ?: conn.inputStream)
+      var truncated = false
       val body = if (rawStream != null) {
         val isGzip = conn.contentEncoding.equals("gzip", ignoreCase = true)
         val decoded = if (isGzip) GZIPInputStream(BufferedInputStream(rawStream)) else BufferedInputStream(rawStream)
@@ -87,15 +88,21 @@ object PorcelainHttpClient {
             val read = input.read(buf)
             if (read <= 0) break
             total += read
-            if (total > MAX_BODY_BYTES) break
+            if (total > MAX_BODY_BYTES) {
+              truncated = true
+              break
+            }
             out.write(buf, 0, read)
           }
-          out.toString(Charsets.UTF_8.name())
+          if (truncated) "" else out.toString(Charsets.UTF_8.name())
         }
       } else {
         ""
       }
 
+      if (truncated) {
+        return HttpResponse(code = 0, body = "", error = "响应数据超过 16 MiB 上限，已中止读取")
+      }
       HttpResponse(code = statusCode, body = body)
     } catch (_: SocketTimeoutException) {
       HttpResponse(code = 0, body = "", error = "网络请求超时，请检查网络或代理设置")

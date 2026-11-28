@@ -176,10 +176,9 @@ class DandanplayApi(
     if (!resp.isSuccessful) {
       return Result.failure(IllegalStateException(resp.error ?: "拉取弹幕失败 (HTTP ${resp.code})"))
     }
-    val parsed = withContext(Dispatchers.Default) {
-      DanmakuXmlParser.parseDandanplayComments(resp.body, json)
+    return withContext(Dispatchers.Default) {
+      DanmakuXmlParser.parseDandanplayCommentsResult(resp.body, json)
     }
-    return Result.success(parsed)
   }
 
   suspend fun matchByTitle(title: String, season: Int?, episode: Double): Result<DandanMatchResult?> {

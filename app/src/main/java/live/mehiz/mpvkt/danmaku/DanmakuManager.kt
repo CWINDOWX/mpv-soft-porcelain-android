@@ -215,7 +215,7 @@ class DanmakuManager(
           FileInputStream(siblingXml).use { DanmakuXmlParser.parseBilibiliXml(it) }
         }.getOrDefault(emptyList())
         if (items.isNotEmpty() && gen == loadGeneration.get()) {
-          activateLocalItems(siblingXml.name, items)
+          activateLocalItems(gen, siblingXml.name, items)
           return@launch
         }
       }
@@ -294,11 +294,12 @@ class DanmakuManager(
    * and DanmakuManager has not loaded any danmaku yet.
    */
   fun onBangumiChineseTitleFallback(chineseTitle: String, season: Int?, episode: Double?) {
+    if (!preferences.danmakuAutoLoad.get()) return
     if (chineseTitle.isBlank() || episode == null) return
     if (_sourceInfo.value != null) return // Already matched!
     val gen = loadGeneration.get()
     scope.launch(Dispatchers.IO) {
-      if (_sourceInfo.value != null || gen != loadGeneration.get()) return@launch
+      if (!preferences.danmakuAutoLoad.get() || _sourceInfo.value != null || gen != loadGeneration.get()) return@launch
       _loading.value = true
       _statusMessage.value = "通过 Bangumi 中文名补充匹配弹幕…"
       val matched = api.matchByTitle(chineseTitle, season, episode).getOrNull()
@@ -361,7 +362,8 @@ class DanmakuManager(
   }
 
   fun selectSearchEpisode(animeTitle: String, episode: DanmakuSearchEpisode) {
-    val gen = loadGeneration.get()
+    // Bump generation so any in-flight auto-match or Bangumi fallback cannot overwrite manual selection
+    val gen = loadGeneration.incrementAndGet()
     _loading.value = true
     _statusMessage.value = "正在加载弹幕…"
     scope.launch(Dispatchers.IO) {
@@ -372,14 +374,15 @@ class DanmakuManager(
         episodeTitle = episode.episodeTitle.ifBlank { "第${episode.episodeNumber}话" },
         saveHistory = true,
       )
-      if (ok && !_enabled.value) {
+      if (ok && gen == loadGeneration.get() && !_enabled.value) {
         setEnabled(true, showToast = false)
       }
     }
   }
 
   fun loadLocalXmlUri(uri: Uri, label: String = "本地弹幕") {
-    val gen = loadGeneration.get()
+    // Bump generation so any in-flight network auto-match cannot overwrite imported local XML
+    val gen = loadGeneration.incrementAndGet()
     _loading.value = true
     _statusMessage.value = "正在解析本地弹幕…"
     scope.launch(Dispatchers.IO) {
@@ -396,8 +399,8 @@ class DanmakuManager(
         _statusMessage.value = "本地弹幕文件为空或格式不支持"
         withContext(Dispatchers.Main) { onToast("未能解析出弹幕内容") }
       } else {
-        activateLocalItems(label, parsed)
-        if (!_enabled.value) setEnabled(true, showToast = false)
+        activateLocalItems(gen, label, parsed)
+        if (gen == loadGeneration.get() && !_enabled.value) setEnabled(true, showToast = false)
       }
     }
   }
@@ -454,7 +457,8 @@ class DanmakuManager(
     )
   }
 
-  private suspend fun activateLocalItems(label: String, items: List<DanmakuItem>) {
+  private suspend fun activateLocalItems(gen: Int, label: String, items: List<DanmakuItem>) {
+    if (gen != loadGeneration.get()) return
     rawComments = items
     currentEpisodeId = null
     publishComments(items, _style.value.mergeDuplicates)

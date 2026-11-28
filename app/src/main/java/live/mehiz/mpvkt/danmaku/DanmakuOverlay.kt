@@ -75,6 +75,7 @@ private class DanmakuCanvasEngine {
   private var baselineOffset = 38f
   private var maxLanes = 10
   private var densityScale = 2.5f
+  private var lastPaintKey = Long.MIN_VALUE
 
   fun configureStyle(
     style: DanmakuStyleConfig,
@@ -83,42 +84,64 @@ private class DanmakuCanvasEngine {
     height: Float,
     density: Float,
   ) {
-    densityScale = density
-    val newTextSize = (height * (style.fontSize / 720f)).coerceIn(18f, height * 0.14f)
-    val styledTypeface = if (style.bold) Typeface.create(typeface, Typeface.BOLD) else typeface
+    val heightBucket = height.roundToInt()
+    val densityBucket = (density * 100f).roundToInt()
+    val outlineBucket = (style.outline * 100f).roundToInt()
+    val displayAreaBucket = (style.displayArea * 100f).roundToInt()
+    val typefaceHash = typeface.hashCode().toLong()
 
-    fillPaint.textSize = newTextSize
-    fillPaint.typeface = styledTypeface
-    fillPaint.isFakeBoldText = style.bold
+    val paintKey = (
+      style.fontSize.toLong() * 31L +
+        (if (style.bold) 1L else 0L) * 1993L +
+        outlineBucket.toLong() * 4001L +
+        displayAreaBucket.toLong() * 8009L +
+        heightBucket.toLong() * 16001L +
+        densityBucket.toLong() * 32003L +
+        style.fontChoice.hashCode().toLong() * 65537L +
+        typefaceHash * 131071L
+      )
 
-    strokePaint.textSize = newTextSize
-    strokePaint.typeface = styledTypeface
-    strokePaint.isFakeBoldText = style.bold
-    strokePaint.strokeWidth = (style.outline * density * 1.15f).coerceAtLeast(0f)
+    if (paintKey != lastPaintKey) {
+      lastPaintKey = paintKey
+      densityScale = density
+      val newTextSize = (height * (style.fontSize / 720f)).coerceIn(18f, height * 0.14f)
+      val styledTypeface = if (style.bold) Typeface.create(typeface, Typeface.BOLD) else typeface
+      // Only enable synthetic bold when the font lacks a real bold weight (prevents double-bold blur)
+      val needFakeBold = style.bold && !styledTypeface.isBold
 
-    shadowPaint.textSize = newTextSize
-    shadowPaint.typeface = styledTypeface
-    shadowPaint.isFakeBoldText = style.bold
+      fillPaint.textSize = newTextSize
+      fillPaint.typeface = styledTypeface
+      fillPaint.isFakeBoldText = needFakeBold
 
-    val fm = fillPaint.fontMetrics
-    val glyphHeight = fm.descent - fm.ascent
-    textSizePx = newTextSize
-    laneHeight = max(glyphHeight * 1.18f, newTextSize * 1.24f)
-    baselineOffset = -fm.ascent + (laneHeight - glyphHeight) * 0.5f
+      strokePaint.textSize = newTextSize
+      strokePaint.typeface = styledTypeface
+      strokePaint.isFakeBoldText = needFakeBold
+      strokePaint.strokeWidth = (style.outline * density * 1.15f).coerceAtLeast(0f)
 
-    val topMargin = height * 0.025f
-    val usableHeight = (height * style.displayArea - topMargin).coerceAtLeast(laneHeight)
-    maxLanes = floor(usableHeight / laneHeight).toInt().coerceAtLeast(1)
+      shadowPaint.textSize = newTextSize
+      shadowPaint.typeface = styledTypeface
+      shadowPaint.isFakeBoldText = needFakeBold
 
-    if (scrollLanes.size < maxLanes) {
-      scrollLanes = Array(maxLanes + 8) { ScrollLaneSlot() }
-      topLaneUntil = FloatArray(maxLanes + 8) { -9999f }
-      bottomLaneUntil = FloatArray(maxLanes + 8) { -9999f }
+      val fm = fillPaint.fontMetrics
+      val glyphHeight = fm.descent - fm.ascent
+      textSizePx = newTextSize
+      laneHeight = max(glyphHeight * 1.18f, newTextSize * 1.24f)
+      baselineOffset = -fm.ascent + (laneHeight - glyphHeight) * 0.5f
+
+      val topMargin = height * 0.025f
+      val usableHeight = (height * style.displayArea - topMargin).coerceAtLeast(laneHeight)
+      maxLanes = floor(usableHeight / laneHeight).toInt().coerceAtLeast(1)
+
+      if (scrollLanes.size < maxLanes) {
+        scrollLanes = Array(maxLanes + 8) { ScrollLaneSlot() }
+        topLaneUntil = FloatArray(maxLanes + 8) { -9999f }
+        bottomLaneUntil = FloatArray(maxLanes + 8) { -9999f }
+      }
     }
 
     val layoutKey = (
       style.fontSize.toLong() * 31L +
-        (style.displayArea * 100f).roundToInt() * 131L +
+        displayAreaBucket * 131L +
         style.scrollSeconds * 977L +
         (if (style.bold) 1 else 0) * 1993L +
         (if (style.blockTop) 1 else 0) * 4001L +
@@ -127,7 +150,7 @@ private class DanmakuCanvasEngine {
         (if (style.blockColor) 1 else 0) * 32003L +
         style.maxOnScreen * 65537L +
         style.fontChoice.hashCode().toLong() +
-        typeface.hashCode().toLong() * 131071L
+        typefaceHash * 131071L
       )
 
     if (layoutKey != lastLayoutKey || abs(width - lastWidth) > 2f || abs(height - lastHeight) > 2f) {

@@ -51,8 +51,15 @@ object DanmakuXmlParser {
   }
 
   fun parseDandanplayComments(jsonStr: String, json: Json): List<DanmakuItem> {
-    val root = runCatching { json.parseToJsonElement(jsonStr).jsonObject }.getOrNull() ?: return emptyList()
-    val comments = root["comments"] as? JsonArray ?: return emptyList()
+    return parseDandanplayCommentsResult(jsonStr, json).getOrDefault(emptyList())
+  }
+
+  fun parseDandanplayCommentsResult(jsonStr: String, json: Json): Result<List<DanmakuItem>> {
+    val root = runCatching { json.parseToJsonElement(jsonStr).jsonObject }.getOrElse {
+      return Result.failure(IllegalStateException("弹幕数据解析失败（响应不完整或格式异常）"))
+    }
+    val comments = root["comments"] as? JsonArray
+      ?: return Result.failure(IllegalStateException("弹幕数据格式异常（缺少弹幕列表）"))
     val result = ArrayList<DanmakuItem>(comments.size)
     for (el in comments) {
       val obj = el as? JsonObject ?: continue
@@ -71,7 +78,7 @@ object DanmakuXmlParser {
       result.add(DanmakuItem(timeSec = timeSec, mode = mode, colorRgb = color, text = cleaned))
     }
     result.sortBy { it.timeSec }
-    return result
+    return Result.success(result)
   }
 
   fun mergeDuplicates(sortedItems: List<DanmakuItem>, toleranceSec: Float = 5f): List<DanmakuItem> {
